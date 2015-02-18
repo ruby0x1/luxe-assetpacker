@@ -1,0 +1,25 @@
+{
+
+  project : {
+    name : 'assetpack',
+    version : '1.0.0',
+    author : 'luxeengine',
+
+    app : {
+      name : 'luxe_assetpack',
+      package : 'com.luxeengine.assetpack'
+    },
+
+    build : {
+      dependencies : {
+        luxe : '*',
+      }
+    },
+
+    files : {
+      assets : 'assets/'
+    }
+
+  }
+
+}

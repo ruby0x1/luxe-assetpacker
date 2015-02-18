@@ -1,0 +1,34 @@
+{
+
+  luxe:{
+    window:{
+      width:1280,
+      height:720,
+      resizable:false
+    }
+  },
+
+  project : {
+    name : 'assetpack',
+    version : '1.0.0',
+    author : 'luxeengine',
+
+    app : {
+      name : 'luxe_assetpack',
+      package : 'com.luxeengine.assetpack'
+    },
+
+    build : {
+      dependencies : {
+        luxe : '*',
+        mint : '*'
+      }
+    },
+
+    files : {
+      assets : 'assets/'
+    }
+
+  }
+
+}
