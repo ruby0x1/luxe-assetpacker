@@ -8,6 +8,10 @@ import mint.render.LuxeMintRender;
 import mint.render.Convert;
 import snow.io.typedarray.Uint8Array;
 
+#if cpp
+import snow.platform.native.io.IOFile;
+#end
+
 typedef AssetItem = { id:UInt, data:Uint8Array };
 
 typedef AssetPack = {
@@ -24,7 +28,6 @@ typedef AssetPack = {
 typedef UndoState = { button:mint.Button, before:Bool, after:Bool };
 typedef FileInfo = { parcel_name:String, full_path:String };
 
-//total count per section
 //teardown/reopen
 
 class Main extends luxe.Game {
@@ -64,6 +67,12 @@ class Main extends luxe.Game {
         var width = Luxe.screen.w * 0.7;
         var height = Luxe.screen.h * 0.9;
 
+        quickviewoverlay = new mint.Panel({
+            parent: canvas,
+            bounds: new Rect(0,0,Luxe.screen.w,Luxe.screen.h),
+            visible: false
+        });
+
         quickviewpanel = new mint.ScrollArea({
             parent: canvas,
             bounds: new Rect(Luxe.screen.w * 0.15,Luxe.screen.h*0.05,width,height),
@@ -72,6 +81,8 @@ class Main extends luxe.Game {
 
         var quickviewr : mint.render.Scroll = cast render.renderers.get(quickviewpanel);
             quickviewr.visual.color.a = 0;
+        var quickviewor : mint.render.Panel = cast render.renderers.get(quickviewoverlay);
+            quickviewor.visual.color.a = 0;
     }
 
     function create_left_menu() {
@@ -81,7 +92,7 @@ class Main extends luxe.Game {
         new mint.Label({
             parent: canvas,
             name: 'open_folder',
-            bounds: new Rect(left_l,16,left_w,22),
+            bounds: new Rect(left_l,8,left_w,22),
             text: 'open folder',
             align: TextAlign.left,
             point_size: 20,
@@ -90,8 +101,18 @@ class Main extends luxe.Game {
 
         new mint.Label({
             parent: canvas,
+            name: 'open_pack',
+            bounds: new Rect(left_l,30,left_w,22),
+            text: 'open packed parcel',
+            align: TextAlign.left,
+            point_size: 20,
+            onclick: click_open_pack
+        });
+
+        new mint.Label({
+            parent: canvas,
             name: 'label_select',
-            bounds: new Rect(left_l,48,left_w,16),
+            bounds: new Rect(left_l,64,left_w,16),
             text: 'select all',
             align: TextAlign.left,
             point_size: 16,
@@ -101,13 +122,55 @@ class Main extends luxe.Game {
         new mint.Label({
             parent: canvas,
             name: 'label_selectnone',
-            bounds: new Rect(left_l,64,left_w,16),
+            bounds: new Rect(left_l,80,left_w,16),
             text: 'select none',
             align: TextAlign.left,
             point_size: 16,
             onclick: click_select_none
         });
 
+
+        var lzmacheck = new mint.Checkbox({
+            parent: canvas,
+            name: 'check_lzma',
+            bounds: new Rect(left_l,112,16,16),
+            oncheck: click_toggle_lzma,
+            state: true,
+        });
+
+        var zipcheck = new mint.Checkbox({
+            parent: canvas,
+            name: 'check_zip',
+            bounds: new Rect(left_l,136,16,16),
+            oncheck: click_toggle_zip,
+            state: false,
+        });
+
+
+        new mint.Label({
+            parent: canvas,
+            name: 'label_checklzma',
+            bounds: new Rect(left_l+22,92+16,left_w,16),
+            text: 'use lzma',
+            align: TextAlign.left,
+            point_size: 16,
+            mouse_enabled: true,
+            onclick: function(_,_){
+                lzmacheck.state = !lzmacheck.state;
+            }
+        });
+
+        new mint.Label({
+            parent: canvas,
+            name: 'label_checkzip',
+            bounds: new Rect(left_l+22,116+16,left_w,16),
+            text: 'use zip',
+            align: TextAlign.left,
+            point_size: 16,
+            onclick: function(_,_){
+                zipcheck.state = !zipcheck.state;
+            }
+        });
     }
 
     var undo_stack:Array< Array<UndoState> >;
@@ -221,6 +284,14 @@ class Main extends luxe.Game {
         trace('actions:' + actions.length);
     }
 
+    function click_toggle_lzma(now:Bool, prev:Bool) {
+        Packer.use_lzma = now;
+    } //click_toggle_lzma
+
+    function click_toggle_zip(now:Bool, prev:Bool) {
+        Packer.use_zip = now;
+    } //click_toggle_zip
+
     function create_right_menu() {
 
         var right_w = Luxe.screen.w / 4;
@@ -270,33 +341,6 @@ class Main extends luxe.Game {
 
     }
 
-    function compress_pack( pack:AssetPack ) : haxe.io.Bytes {
-
-        var s = new haxe.Serializer();
-            s.serialize( pack );
-
-        var raw = s.toString();
-        var rawbytes = haxe.io.Bytes.ofString(raw);
-        var compbytes = haxe.io.Bytes.ofData(snow_lzma_encode(rawbytes.getData()));
-
-        Sys.println('${pack.id}: compressed ${pack.items.length} items to ' + Luxe.utils.bytes_to_string(compbytes.length) + ' from ~' + Luxe.utils.bytes_to_string(rawbytes.length));
-
-        return compbytes;
-
-    } //compress_pack
-
-    function uncompress_pack( bytes:haxe.io.Bytes ) : AssetPack {
-
-        var ucompbytes = haxe.io.Bytes.ofData(snow_lzma_decode(bytes.getData()));
-        var uraw = ucompbytes.toString();
-        var u = new haxe.Unserializer(uraw);
-        var pack : AssetPack = u.unserialize();
-
-        Sys.println('${pack.id}: decompressed ${pack.items.length} items from ' + bytes.length + ' from ' + ucompbytes.length);
-
-        return pack;
-
-    } //uncompress_pack
 
     function build(_,_) {
 
@@ -308,16 +352,14 @@ class Main extends luxe.Game {
             var _id = Luxe.utils.hash(l.parcel_name);
             trace('\t storing item id ' + _id);
             var rawdata = Luxe.loadData(l.full_path);
-            var filebytes : haxe.io.Bytes = rawdata.data;
-            var filedata = new Uint8Array(filebytes);
 
             itemlist.push({
                 id: _id,
-                data: filedata
+                data: rawdata.data
             });
         }
 
-        var packed = compress_pack({
+        var packed = Packer.compress_pack({
             id: 'assets.parcel',
             list : list,
             items : itemlist
@@ -331,21 +373,17 @@ class Main extends luxe.Game {
             writebytes(save_path, packed, true);
         }
 
-
-        // var unpacked = uncompress_pack(packed);
-
-        //     for(item in unpacked.list) {
-        //         trace('\t ${unpacked.id}: found ${item}');
-        //     }
-
     }
 
     function writebytes(path:String, bytes:haxe.io.Bytes, binary:Bool=false) {
-        var f = sys.io.File.write(path, binary);
-            f.writeBytes(bytes, 0, bytes.length);
-            f.flush();
-            f.close();
-    }
+
+        var file : IOFile = IOFile.from_file( path, binary ? 'wb' : 'w' );
+
+            file.write( new Uint8Array(bytes), bytes.length, 1 );
+            file.close();
+            file = null;
+
+    } //writebytes
 
     function create_select_view() {
 
@@ -387,12 +425,24 @@ class Main extends luxe.Game {
         logl.text = t;
     }
 
+    function click_open_pack(_,_) {
+
+        var open_path = Luxe.core.app.io.platform.dialog_open('select parcel to open', [{ extension:'parcel' }]);
+        if(open_path.length > 0) {
+            _log('action / open parcel selected\n$open_path');
+            show_parcel_list( open_path );
+        } else {
+            _log('action / cancelled open parcel');
+        }
+
+    }
+
     function click_open_folder(_,_) {
 
         var open_path = Luxe.core.app.io.platform.dialog_folder('select assets folder to show');
         if(open_path.length > 0) {
             _log('action / open dialog selected\n$open_path');
-            show_select_list( open_path );
+            show_folder_list( open_path );
         } else {
             _log('action / cancelled open dialog');
         }
@@ -515,13 +565,38 @@ class Main extends luxe.Game {
 
     }
 
+    function show_parcel_list( path:String ) {
+
+        open_path = path;
+
+        var parcel = new Pack(path);
+
+        trace('${parcel.pack.id}');
+
+        selectinfo.text = 'loaded ${parcel.pack.id}, contains ${parcel.pack.items.length} assets';
+        selectors = [];
+        selector_info = new Map();
+
+        // for(item in parcel.pack.items) {
+        //     var t = phoenix.Texture.load_from_pixels item.data
+        // }
+
+        // for(ext in exts) {
+        //     var items = filelist.filter(function(_s) return ext == haxe.io.Path.extension(_s) );
+        //     if(items.length > 0) {
+        //         show_selector( '$ext files', ext, items );
+        //     }
+        // }
+
+    } //show_parcel_list
+
     var selectors : Array<mint.Button>;
     var selector_info : Map<mint.Button, FileInfo>;
 
     var open_path : String = '';
     var filelist : Array<String>;
 
-    function show_select_list( path:String ) {
+    function show_folder_list( path:String ) {
 
         open_path = path;
 
@@ -536,10 +611,10 @@ class Main extends luxe.Game {
 
         for(ext in exts) {
             var items = filelist.filter(function(_s) return ext == haxe.io.Path.extension(_s) );
-            show_selector( '$ext files', ext, items );
+            if(items.length > 0) show_selector( '$ext files', ext, items );
         }
 
-    }
+    } //show_folder_list
 
     function click_path(_, _) {
 
@@ -607,19 +682,29 @@ class Main extends luxe.Game {
     var hoveredinfo : Null<String>;
     var hoveredbutton : mint.Button;
     var quickviewpanel : mint.ScrollArea;
+    var quickviewoverlay : mint.Panel;
 
     function toggle_quickview() {
 
         var quickviewr : mint.render.Scroll = cast render.renderers.get(quickviewpanel);
+        var quickviewor : mint.render.Panel = cast render.renderers.get(quickviewoverlay);
+
         if(quickview) { //hide
+
+            if(Luxe.audio.exists('$playing_sound')) {
+                var s = Luxe.audio.get('$playing_sound');
+                    if(s != null && s.playing) s.stop();
+            }
 
             //remove the children from the view
             for(c in quickviewpanel.children) {
                 c.destroy();
             }
 
+            quickviewor.visual.color.tween(0.05, {a:0});
             quickviewr.visual.color.tween(0.1, {a:0}).onComplete(function(){
                 quickviewpanel.visible = false;
+                quickviewoverlay.visible = false;
                 quickview = false;
                 canvas.modal = null;
                 hoveredinfo = null;
@@ -681,12 +766,35 @@ class Main extends luxe.Game {
                             });
                         }
 
+                    case 'wav','ogg':
+
+                        var i = new mint.Image({
+                            parent: quickviewpanel,
+                            path: 'assets/iconmonstr-sound-wave-icon-128.png',
+                            bounds: new Rect(2,2,64,64)
+                        });
+
+                        b = b.set(Luxe.screen.mid.x-34,Luxe.screen.mid.y-34,68,68);
+                        quickviewpanel.bounds = b;
+
+                        Luxe.audio.stop('$playing_sound');
+
+                        playing_sound = Luxe.utils.hash(hoveredinfo);
+
+                        if(!Luxe.audio.exists('$playing_sound')) {
+                            Luxe.audio.create(hoveredinfo, '$playing_sound', false);
+                        }
+
+                        Luxe.audio.on('$playing_sound', 'load', _onaudioload);
+                        Luxe.audio.on('$playing_sound', 'end', _onaudioend);
 
                     case _: _log('quickview / unknown extension $ext');
                 }
 
                 quickviewpanel.bounds = b;
                 quickviewpanel.visible = true;
+                quickviewoverlay.visible = true;
+                quickviewor.visual.color.tween(0.15, {a:0.9});
                 quickviewr.visual.color.tween(0.3, {a:1});
                 canvas.reset_focus(hoveredbutton);
                 canvas.modal = quickviewpanel;
@@ -696,6 +804,11 @@ class Main extends luxe.Game {
         } //show
 
     } //toggle_quickview
+
+    function _onaudioload(_) { Luxe.audio.play('$playing_sound'); Luxe.audio.off('$playing_sound', 'load', _onaudioload); }
+    function _onaudioend(_) { toggle_quickview(); Luxe.audio.off('$playing_sound', 'end', _onaudioend); }
+
+    var playing_sound:UInt = 0;
 
     override function onkeyup( e:KeyEvent ) {
 
@@ -762,7 +875,105 @@ class Main extends luxe.Game {
     } //drawc
 
 
+} //Main
+
+class Packer {
+
+    public static var use_lzma = true;
+    public static var use_zip = false;
+
+    public static function compress_pack( pack:AssetPack ) : haxe.io.Bytes {
+
+        var s = new haxe.Serializer();
+            s.serialize( pack );
+
+        var raw = s.toString();
+        var finalbytes = haxe.io.Bytes.ofString(raw);
+        var presize = finalbytes.length;
+
+        if(use_lzma) {
+
+            var packdata = finalbytes.getData();
+                packdata = snow_lzma_encode(packdata);
+
+            finalbytes = haxe.io.Bytes.ofData(packdata);
+
+        }
+
+        if(use_zip) {
+
+            finalbytes = haxe.zip.Compress.run(finalbytes, 9);
+
+        }
+
+        var postsize = finalbytes.length;
+
+        var presize_str = Luxe.utils.bytes_to_string(presize);
+        var postsize_str = Luxe.utils.bytes_to_string(postsize);
+
+        Sys.println('${pack.id}: packed ${pack.items.length} items / before:$presize_str / after:$postsize_str');
+
+        return finalbytes;
+
+    } //compress_pack
+
+    public static function uncompress_pack( bytes:haxe.io.Bytes ) : AssetPack {
+
+        var inputbytes = bytes;
+        var presize = bytes.length;
+
+        if(use_lzma) {
+
+            var inputdata = bytes.getData();
+                inputdata = snow_lzma_decode(inputdata);
+
+            inputbytes = haxe.io.Bytes.ofData(inputdata);
+
+        }
+
+        if(use_zip) {
+            inputbytes = haxe.zip.Uncompress.run(inputbytes);
+        }
+
+        var uraw = inputbytes.toString();
+        var u = new haxe.Unserializer( uraw );
+        var pack : AssetPack = u.unserialize();
+
+        var postsize = inputbytes.length;
+
+        var presize_str = Luxe.utils.bytes_to_string(presize);
+        var postsize_str = Luxe.utils.bytes_to_string(postsize);
+
+        Sys.println('${pack.id}: unpacked ${pack.items.length} items / before:$presize_str / after:$postsize_str');
+
+        return pack;
+
+    } //uncompress_pack
+
     static var snow_lzma_encode    = snow.utils.Libs.load("snow", "snow_lzma_encode", 1);
     static var snow_lzma_decode    = snow.utils.Libs.load("snow", "snow_lzma_decode", 1);
 
-} //Main
+} //Packer
+
+class Pack {
+
+    public var pack : AssetPack;
+
+    public function new( load_from_file_id:String, ?onload:Void->Void ) {
+
+        Luxe.loadData(load_from_file_id, function(d){
+
+            pack = Packer.uncompress_pack(d.data.buffer);
+
+            for(item in pack.list) {
+                trace('\t ${pack.id}: found ${item}');
+            }
+
+            if(onload != null) onload();
+
+        }); //loadData
+
+    } //new
+
+} //Pack
+
