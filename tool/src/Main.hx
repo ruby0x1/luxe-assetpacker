@@ -2,6 +2,8 @@
 import luxe.Input;
 import luxe.Color;
 
+import luxe.resource.Resource.JSONResource;
+import luxe.resource.Resource.TextResource;
 import mint.Types;
 import mint.Control;
 import mint.render.LuxeMintRender;
@@ -582,9 +584,32 @@ class Main extends luxe.Game {
         selectors = [];
         selector_info = new Map();
 
+        //now upload them all to Luxe.resources
+        trace('adding to Luxe.resources:');
+        for(_id in parcel.pack.items.keys()) {
+            var ext = haxe.io.Path.extension(_id);
+            switch(ext) {
+                case 'png','jpg':
+                    trace('\t image: $_id');
+                    parcel.create_texture(_id);
+                case 'json':
+                    trace('\t json: $_id');
+                    var r = parcel.create_json(_id);
+                    trace(r.json);
+                case 'txt','csv':
+                    trace('\t text: $_id');
+                    var r = parcel.create_text(_id);
+                    trace(r.text);
+                case 'wav':
+                    trace('\t wav sound: $_id');
+                    parcel.create_wav(_id);
+            }
+        }
+
         var s = new luxe.Sprite({
             centered: false,
-            texture: parcel.loadTexture('assets/textures/packs/desk.png'),
+            texture: Luxe.loadTexture('assets/textures/packs/desk.png'),
+            size: new luxe.Vector(128,128),
             depth:99
         });
 
@@ -972,9 +997,7 @@ class Pack {
             pack = Packer.uncompress_pack(d.data.getByteBuffer());
             #end
 
-            for(item in pack.items.keys()) {
-                trace('\t ${pack.id}: found ${item}');
-            }
+            // for(item in pack.items.keys()) trace('\t ${pack.id}: found ${item}');
 
             if(onload != null) onload();
 
@@ -983,7 +1006,52 @@ class Pack {
     } //new
 
 
-    public function loadTexture( _id:String, ?_onload:Texture->Void, ?_silent:Bool=false ) : Texture {
+    public function create_text( _id:String ) : TextResource {
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('text not found in the pack! $_id');
+            return null;
+        }
+
+             //fetch the bytes from the pack
+        #if newtypedarrays
+        var _bytes : Uint8Array = pack.items.get(_id);
+        var string : String = _bytes.buffer.toString();
+        #else
+        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
+        var string : String = _bytes.toString();
+        #end
+
+        var res = new TextResource( _id, string, Luxe.resources );
+        Luxe.resources.cache(res);
+
+        return res;
+    }
+
+    public function create_json( _id:String ) : JSONResource {
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('json not found in the pack! $_id');
+            return null;
+        }
+
+        var t = create_text(_id);
+        var json = haxe.Json.parse(t.text);
+
+        var res = new JSONResource( _id, json, Luxe.resources );
+        Luxe.resources.cache(res);
+
+        return res;
+    }
+
+    public function create_wav( _id:String ) : luxe.Sound {
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('wav not found in the pack! $_id');
+            return null;
+        }
+
+        return null;
+    }
+
+    public function create_texture( _id:String ) : Texture {
 
         if(!pack.items.exists(_id)) {
             luxe.Log.log('texture not found in the pack! $_id');
@@ -999,12 +1067,6 @@ class Pack {
 
             //:todo:which resources
         var resources = Luxe.resources;
-        var _exists = resources.find_texture(_id);
-        if(_exists != null) {
-            luxe.Log._verbose("loaded (cached) " + _exists.id ) ;
-            if(_onload != null) (_exists);
-            return _exists;
-        } //_exists != null
 
         #if newtypedarrays
         var texture = Texture.load_from_bytes(_id, _bytes, true);
@@ -1012,7 +1074,7 @@ class Pack {
         var texture = Texture.load_from_bytearray(_id, _bytes, true);
         #end
 
-        if(_onload != null) _onload(texture);
+        resources.cache(texture);
 
         return texture;
 
