@@ -595,14 +595,14 @@ class Main extends luxe.Game {
                 case 'json':
                     trace('\t json: $_id');
                     var r = parcel.create_json(_id);
-                    trace(r.json);
+                    // trace(r.json);
                 case 'txt','csv':
                     trace('\t text: $_id');
                     var r = parcel.create_text(_id);
-                    trace(r.text);
-                case 'wav':
-                    trace('\t wav sound: $_id');
-                    parcel.create_wav(_id);
+                    // trace(r.text);
+                case 'wav','ogg','pcm':
+                    trace('\t sound: $_id');
+                    parcel.create_sound(_id);
             }
         }
 
@@ -612,6 +612,8 @@ class Main extends luxe.Game {
             size: new luxe.Vector(128,128),
             depth:99
         });
+
+        Luxe.audio.play('red_line_long');
 
     } //show_parcel_list
 
@@ -791,7 +793,7 @@ class Main extends luxe.Game {
                             });
                         }
 
-                    case 'wav','ogg':
+                    case 'wav','ogg','pcm':
 
                         var i = new mint.Image({
                             parent: quickviewpanel,
@@ -1042,13 +1044,26 @@ class Pack {
         return res;
     }
 
-    public function create_wav( _id:String ) : luxe.Sound {
+    public function create_sound( _id:String ) : luxe.Sound {
         if(!pack.items.exists(_id)) {
-            luxe.Log.log('wav not found in the pack! $_id');
+            luxe.Log.log('sound not found in the pack! $_id');
             return null;
         }
 
-        return null;
+             //fetch the bytes from the pack
+        #if newtypedarrays
+        var _bytes : Uint8Array = pack.items.get(_id);
+        #else
+        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
+        #end
+
+        var name = haxe.io.Path.withoutDirectory(_id);
+            name = haxe.io.Path.withoutExtension(name);
+
+        luxe.Log.log('create sound from $_id as $name');
+        var sound = Luxe.audio.create_from_bytes(_id, name, _bytes);
+
+        return sound;
     }
 
     public function create_texture( _id:String ) : Texture {
