@@ -6,18 +6,21 @@ import mint.Types;
 import mint.Control;
 import mint.render.LuxeMintRender;
 import mint.render.Convert;
-import snow.io.typedarray.Uint8Array;
+
+#if newtypedarrays import snow.io.typedarray.Uint8Array; #end
+#if !newtypedarrays import snow.utils.ByteArray; #end
+
+import phoenix.Texture;
+import phoenix.BitmapFont.BitmapFont;
 
 #if cpp
 import snow.platform.native.io.IOFile;
 #end
 
-typedef AssetItem = { id:UInt, data:Uint8Array };
-
 typedef AssetPack = {
     var id: String;
-    var list: Array<String>;
-    var items: Array<AssetItem>;
+    #if newtypedarrays var items: Map<String, Uint8Array>; #end
+    #if !newtypedarrays var items: Map<String, haxe.io.Bytes>; #end
 }
 
 @:enum abstract ActionType(Int) from Int to Int {
@@ -344,25 +347,22 @@ class Main extends luxe.Game {
 
     function build(_,_) {
 
-        var list = [];
-        var itemlist = [];
+        #if newtypedarrays
+        var items : Map<String,Uint8Array> = new Map();
+        #else
+        var items : Map<String,haxe.io.Bytes> = new Map();
+        #end
 
         for(l in selectlist) {
-            list.push(l.parcel_name);
-            var _id = Luxe.utils.hash(l.parcel_name);
+            var _id = l.parcel_name;
             trace('\t storing item id ' + _id);
             var rawdata = Luxe.loadData(l.full_path);
-
-            itemlist.push({
-                id: _id,
-                data: rawdata.data
-            });
+            items.set(_id, rawdata.data);
         }
 
         var packed = Packer.compress_pack({
             id: 'assets.parcel',
-            list : list,
-            items : itemlist
+            items : items
         });
 
         var size = Luxe.utils.bytes_to_string(packed.length);
@@ -379,7 +379,12 @@ class Main extends luxe.Game {
 
         var file : IOFile = IOFile.from_file( path, binary ? 'wb' : 'w' );
 
+            #if newtypedarrays
             file.write( new Uint8Array(bytes), bytes.length, 1 );
+            #else
+            file.write( ByteArray.fromBytes(bytes), bytes.length, 1 );
+            #end
+
             file.close();
             file = null;
 
@@ -573,20 +578,15 @@ class Main extends luxe.Game {
 
         trace('${parcel.pack.id}');
 
-        selectinfo.text = 'loaded ${parcel.pack.id}, contains ${parcel.pack.items.length} assets';
+        selectinfo.text = 'loaded ${parcel.pack.id}, contains ${Lambda.count(parcel.pack.items)} assets';
         selectors = [];
         selector_info = new Map();
 
-        // for(item in parcel.pack.items) {
-        //     var t = phoenix.Texture.load_from_pixels item.data
-        // }
-
-        // for(ext in exts) {
-        //     var items = filelist.filter(function(_s) return ext == haxe.io.Path.extension(_s) );
-        //     if(items.length > 0) {
-        //         show_selector( '$ext files', ext, items );
-        //     }
-        // }
+        var s = new luxe.Sprite({
+            centered: false,
+            texture: parcel.loadTexture('assets/textures/packs/desk.png'),
+            depth:99
+        });
 
     } //show_parcel_list
 
@@ -911,7 +911,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        Sys.println('${pack.id}: packed ${pack.items.length} items / before:$presize_str / after:$postsize_str');
+        Sys.println('${pack.id}: packed ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
 
         return finalbytes;
 
@@ -922,18 +922,21 @@ class Packer {
         var inputbytes = bytes;
         var presize = bytes.length;
 
+        if(use_zip) {
+
+            inputbytes = haxe.zip.Uncompress.run(inputbytes);
+
+        }
+
         if(use_lzma) {
 
-            var inputdata = bytes.getData();
+            var inputdata = inputbytes.getData();
                 inputdata = snow_lzma_decode(inputdata);
 
             inputbytes = haxe.io.Bytes.ofData(inputdata);
 
         }
 
-        if(use_zip) {
-            inputbytes = haxe.zip.Uncompress.run(inputbytes);
-        }
 
         var uraw = inputbytes.toString();
         var u = new haxe.Unserializer( uraw );
@@ -944,7 +947,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        Sys.println('${pack.id}: unpacked ${pack.items.length} items / before:$presize_str / after:$postsize_str');
+        Sys.println('${pack.id}: unpacked ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
 
         return pack;
 
@@ -963,9 +966,13 @@ class Pack {
 
         Luxe.loadData(load_from_file_id, function(d){
 
+            #if newtypedarrays
             pack = Packer.uncompress_pack(d.data.buffer);
+            #else
+            pack = Packer.uncompress_pack(d.data.getByteBuffer());
+            #end
 
-            for(item in pack.list) {
+            for(item in pack.items.keys()) {
                 trace('\t ${pack.id}: found ${item}');
             }
 
@@ -974,6 +981,48 @@ class Pack {
         }); //loadData
 
     } //new
+
+
+    public function loadTexture( _id:String, ?_onload:Texture->Void, ?_silent:Bool=false ) : Texture {
+
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('texture not found in the pack! $_id');
+            return null;
+        }
+
+            //fetch the bytes from the pack
+        #if newtypedarrays
+        var _bytes : Uint8Array = pack.items.get(_id);
+        #else
+        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
+        #end
+
+            //:todo:which resources
+        var resources = Luxe.resources;
+        var _exists = resources.find_texture(_id);
+        if(_exists != null) {
+            luxe.Log._verbose("loaded (cached) " + _exists.id ) ;
+            if(_onload != null) (_exists);
+            return _exists;
+        } //_exists != null
+
+        #if newtypedarrays
+        var texture = Texture.load_from_bytes(_id, _bytes, true);
+        #else
+        var texture = Texture.load_from_bytearray(_id, _bytes, true);
+        #end
+
+        if(_onload != null) _onload(texture);
+
+        return texture;
+
+    } //loadTexture
+
+    public function loadFont( _id:String, ?_texture_path:String, ?_onload : BitmapFont->Void, ?_silent:Bool=false ) : BitmapFont {
+
+        return null;
+
+    }
 
 } //Pack
 
