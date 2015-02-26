@@ -2,6 +2,7 @@
 #if newtypedarrays import snow.io.typedarray.Uint8Array; #end
 #if !newtypedarrays import snow.utils.ByteArray; #end
 import luxe.resource.Resource.JSONResource;
+import luxe.resource.Resource.SoundResource;
 import luxe.resource.Resource.TextResource;
 import phoenix.Texture;
 import phoenix.BitmapFont.BitmapFont;
@@ -99,7 +100,7 @@ class Pack {
         return res;
     }
 
-    public function create_sound( _id:String ) : luxe.Sound {
+    public function create_sound( _id:String ) : SoundResource {
         if(!pack.items.exists(_id)) {
             luxe.Log.log('sound not found in the pack! $_id');
             return null;
@@ -118,7 +119,10 @@ class Pack {
         luxe.Log.log('create sound from $_id as $name');
         var sound = Luxe.audio.create_from_bytes(_id, name, _bytes);
 
-        return sound;
+        var res = new SoundResource( _id, name, Luxe.resources );
+        Luxe.resources.cache(res);
+
+        return res;
     }
 
     public function create_texture( _id:String ) : Texture {
