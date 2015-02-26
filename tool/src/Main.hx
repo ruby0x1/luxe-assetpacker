@@ -506,8 +506,15 @@ class Main extends luxe.Game {
 
                 if(rootidx >= itemc) continue;
 
-                var path = items[rootidx];
-                var display_path = haxe.io.Path.join([pathr.text.text, StringTools.replace(path, open_path, '')]);
+              var path = normalize(items[rootidx]);
+                var asset_base_path = pathr.text.text;
+                var path_without_open_path = StringTools.replace(path, open_path, '');
+
+                trace('base path: $asset_base_path');
+                trace('open path: $open_path');
+                trace('without open path: $path_without_open_path');
+
+                var display_path = haxe.io.Path.join([ asset_base_path, path_without_open_path ]);
                     display_path = normalize(display_path);
 
                 var path_info = { parcel_name:display_path, full_path:path };
@@ -574,7 +581,7 @@ class Main extends luxe.Game {
 
     function show_parcel_list( path:String ) {
 
-        open_path = path;
+        open_path = normalize(path);
 
         var parcel = new Pack(path); //function(parcel){
 
@@ -607,7 +614,7 @@ class Main extends luxe.Game {
 
     function show_folder_list( path:String ) {
 
-        open_path = path;
+        open_path = normalize(path);
 
         var exts = ['json', 'csv', 'txt', 'png', 'jpg', 'wav'];
         filelist = get_file_list(path, exts, true);
