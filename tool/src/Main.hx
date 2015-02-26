@@ -57,6 +57,13 @@ class Main extends luxe.Game {
 
     } //ready
 
+    function normalize(path:String) {
+        path = haxe.io.Path.normalize(path);
+        path = StringTools.replace(path, '\\','/');
+        path = StringTools.replace(path, '\\\\','/');
+        return path;
+    }
+
 
     function create_quick_view() {
 
@@ -501,6 +508,8 @@ class Main extends luxe.Game {
 
                 var path = items[rootidx];
                 var display_path = haxe.io.Path.join([pathr.text.text, StringTools.replace(path, open_path, '')]);
+                    display_path = normalize(display_path);
+
                 var path_info = { parcel_name:display_path, full_path:path };
 
                 var fname = haxe.io.Path.withoutDirectory(path);
