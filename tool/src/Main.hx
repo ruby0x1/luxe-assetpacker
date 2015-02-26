@@ -616,7 +616,7 @@ class Main extends luxe.Game {
 
         open_path = normalize(path);
 
-        var exts = ['json', 'csv', 'txt', 'png', 'jpg', 'wav'];
+        var exts = ['json', 'csv', 'txt', 'fnt', 'png', 'jpg', 'wav'];
         filelist = get_file_list(path, exts, true);
         selectinfo.text = 'found ${filelist.length} assets matching $exts, select files and hit build';
         selectors = [];
@@ -735,7 +735,7 @@ class Main extends luxe.Game {
                 var b = quickviewpanel.bounds;
                 var ext = haxe.io.Path.extension(hoveredinfo);
                 switch(ext) {
-                    case 'json','txt','csv':
+                    case 'json','txt','csv','fnt':
 
                         b = b.set(Luxe.screen.w*0.15, Luxe.screen.h*0.05,Luxe.screen.w*0.7,Luxe.screen.h*0.9);
                         quickviewpanel.bounds = b;

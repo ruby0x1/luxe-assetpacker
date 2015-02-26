@@ -50,7 +50,7 @@ class Pack {
                     loadlog('\t json: $_id');
                     var r = create_json(_id);
                     // loadlog(r.json);
-                case 'txt','csv':
+                case 'txt','csv','fnt':
                     loadlog('\t text: $_id');
                     var r = create_text(_id);
                     // loadlog(r.text);
