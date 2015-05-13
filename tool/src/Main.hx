@@ -2,19 +2,17 @@
 import luxe.Input;
 import luxe.Color;
 
+import luxe.resource.Resource;
+import luxe.resource.Resource.BytesResource;
 import mint.Types;
 import mint.Control;
 import mint.render.LuxeMintRender;
 import mint.render.Convert;
 
-#if newtypedarrays import snow.io.typedarray.Uint8Array; #end
-#if !newtypedarrays import snow.utils.ByteArray; #end
-
-#if cpp
-import snow.platform.native.io.IOFile;
-#end
-
+import phoenix.Texture;
+import snow.api.buffers.Uint8Array;
 import Pack;
+import snow.api.Promise;
 
 @:enum abstract ActionType(Int) from Int to Int {
     var undo = 0;
@@ -40,8 +38,6 @@ class Main extends luxe.Game {
     public static var pathr : mint.render.Label;
 
     override function ready() {
-
-        app.app.assets.strict = false;
 
         render = new LuxeMintRender();
 
@@ -132,48 +128,28 @@ class Main extends luxe.Game {
             onclick: click_select_none
         });
 
-
-        var lzmacheck = new mint.Checkbox({
-            parent: canvas,
-            name: 'check_lzma',
-            bounds: new Rect(left_l,112,16,16),
-            oncheck: click_toggle_lzma,
-            state: true,
-        });
-
         var zipcheck = new mint.Checkbox({
             parent: canvas,
             name: 'check_zip',
-            bounds: new Rect(left_l,136,16,16),
+            bounds: new Rect(left_l,112,16,16),
             oncheck: click_toggle_zip,
-            state: false,
+            state: true,
         });
 
-
-        new mint.Label({
-            parent: canvas,
-            name: 'label_checklzma',
-            bounds: new Rect(left_l+22,92+16,left_w,16),
-            text: 'use lzma',
-            align: TextAlign.left,
-            point_size: 16,
-            mouse_enabled: true,
-            onclick: function(_,_){
-                lzmacheck.state = !lzmacheck.state;
-            }
-        });
 
         new mint.Label({
             parent: canvas,
             name: 'label_checkzip',
-            bounds: new Rect(left_l+22,116+16,left_w,16),
+            bounds: new Rect(left_l+22,92+16,left_w,16),
             text: 'use zip',
             align: TextAlign.left,
             point_size: 16,
+            mouse_enabled: true,
             onclick: function(_,_){
                 zipcheck.state = !zipcheck.state;
             }
         });
+
     }
 
     var undo_stack:Array< Array<UndoState> >;
@@ -287,10 +263,6 @@ class Main extends luxe.Game {
         trace('actions:' + actions.length);
     }
 
-    function click_toggle_lzma(now:Bool, prev:Bool) {
-        Packer.use_lzma = now;
-    } //click_toggle_lzma
-
     function click_toggle_zip(now:Bool, prev:Bool) {
         Packer.use_zip = now;
     } //click_toggle_zip
@@ -347,46 +319,47 @@ class Main extends luxe.Game {
 
     function build(_,_) {
 
-        #if newtypedarrays
         var items : Map<String,Uint8Array> = new Map();
-        #else
-        var items : Map<String,haxe.io.Bytes> = new Map();
-        #end
+        var wait : Array<snow.api.Promise> = [];
 
         for(l in selectlist) {
             var _id = l.parcel_name;
+
             trace('\t storing item id ' + _id);
-            var rawdata = Luxe.loadData(l.full_path);
-            items.set(_id, rawdata.data);
+
+            var p = Luxe.snow.assets.bytes(l.full_path);
+
+                p.then(function(b:snow.system.assets.Asset.AssetBytes) {
+                    items.set(_id, b.bytes);
+                });
+
+            wait.push( p );
+
         }
 
-        var packed = Packer.compress_pack({
-            id: 'assets.parcel',
-            items : items
-        });
+            //wait for them all
+        Promise.all(wait).then(function(_){
 
-        var size = Luxe.utils.bytes_to_string(packed.length);
-        _log('build / built pack from ${selectlist.length} items, parcel is $size');
+            var packed = Packer.compress_pack({
+                id: 'assets.parcel',
+                items : items
+            });
 
-        var save_path = Luxe.core.app.io.platform.dialog_save('select parcel file to save to', { extension:'parcel' });
-        if(save_path.length > 0) {
-            writebytes(save_path, packed, true);
-        }
+            var size = Luxe.utils.bytes_to_string(packed.length);
+            _log('build / built pack from ${selectlist.length} items, parcel is $size');
+
+            var save_path = Luxe.core.app.io.module.dialog_save('select parcel file to save to', { extension:'parcel' });
+            if(save_path.length > 0) {
+                writebytes(save_path, packed);
+            }
+
+        }); //wait
 
     }
 
-    function writebytes(path:String, bytes:haxe.io.Bytes, binary:Bool=false) {
+    function writebytes(path:String, bytes:haxe.io.Bytes) {
 
-        var file : IOFile = IOFile.from_file( path, binary ? 'wb' : 'w' );
-
-            #if newtypedarrays
-            file.write( new Uint8Array(bytes), bytes.length, 1 );
-            #else
-            file.write( ByteArray.fromBytes(bytes), bytes.length, 1 );
-            #end
-
-            file.close();
-            file = null;
+        Luxe.snow.io.data_save(path, Uint8Array.fromBytes(bytes));
 
     } //writebytes
 
@@ -432,7 +405,7 @@ class Main extends luxe.Game {
 
     function click_open_pack(_,_) {
 
-        var open_path = Luxe.core.app.io.platform.dialog_open('select parcel to open', [{ extension:'parcel' }]);
+        var open_path = Luxe.core.app.io.module.dialog_open('select parcel to open', [{ extension:'parcel' }]);
         if(open_path.length > 0) {
             _log('action / open parcel selected\n$open_path');
             show_parcel_list( open_path );
@@ -444,7 +417,7 @@ class Main extends luxe.Game {
 
     function click_open_folder(_,_) {
 
-        var open_path = Luxe.core.app.io.platform.dialog_folder('select assets folder to show');
+        var open_path = Luxe.core.app.io.module.dialog_folder('select assets folder to show');
         if(open_path.length > 0) {
             _log('action / open dialog selected\n$open_path');
             show_folder_list( open_path );
@@ -583,7 +556,11 @@ class Main extends luxe.Game {
 
         open_path = normalize(path);
 
-        var parcel = new Pack(path); //function(parcel){
+        new Pack(path, function(parcel:Pack) {
+
+            trace(parcel);
+            trace(parcel.pack);
+            trace(parcel.pack.items);
 
             trace('loaded ${parcel.pack.id}, it contains ${Lambda.count(parcel.pack.items)} assets');
 
@@ -593,7 +570,7 @@ class Main extends luxe.Game {
 
             var s = new luxe.Sprite({
                 centered: false,
-                texture: Luxe.loadTexture('assets/textures/packs/desk.png'),
+                texture: Luxe.resources.texture('assets/textures/packs/desk.png'),
                 size: new luxe.Vector(128,128),
                 depth:99
             });
@@ -602,7 +579,7 @@ class Main extends luxe.Game {
 
             Luxe.timer.schedule(4, s.destroy.bind(false));
 
-        // });
+        });
 
     } //show_parcel_list
 
@@ -741,32 +718,34 @@ class Main extends luxe.Game {
                         quickviewpanel.bounds = b;
 
                         //load the json string
-                        var txt = Luxe.loadText(hoveredinfo);
-                        var dim = new luxe.Vector();
-                        var disptext = txt.text.substr(0, 1024);
-                        if(disptext.length == 1024) disptext += '\n\n ... preview ...';
+                        var p = Luxe.resources.load_text(hoveredinfo);
+                        p.then(function(txt:TextResource) {
 
-                        Luxe.renderer.font.dimensions_of(disptext, 14, dim);
-                        //create the label to display it
-                        var l = new mint.Label({
-                            parent: quickviewpanel,
-                            bounds: new Rect(4,4,dim.x+8, dim.y+8),
-                            point_size: 14,
-                            align: TextAlign.left,
-                            text:disptext,
-                            mouse_enabled:false,
+                            var dim = new luxe.Vector();
+                            var disptext = txt.asset.text.substr(0, 1024);
+                            if(disptext.length == 1024) disptext += '\n\n ... preview ...';
+
+                            Luxe.renderer.font.dimensions_of(disptext, 14, dim);
+                            //create the label to display it
+                            var l = new mint.Label({
+                                parent: quickviewpanel,
+                                bounds: new Rect(4,4,dim.x+8, dim.y+8),
+                                point_size: 14,
+                                align: TextAlign.left,
+                                text:disptext,
+                                mouse_enabled:false,
+                            });
+
+                            var lr : mint.render.Label = cast render.renderers.get(l);
+                                lr.text.color.rgb(0x121212);
+
                         });
-
-                        var lr : mint.render.Label = cast render.renderers.get(l);
-                            lr.text.color.rgb(0x121212);
-
 
                     case 'png','jpg':
 
-                        var t = Luxe.loadTexture(hoveredinfo);
-                            t.filter = nearest;
+                        var get = Luxe.resources.load_texture(hoveredinfo);
+                        get.then(function(t:Texture){
 
-                        t.onload = function(_){
                             var tw = t.width;
                             var th = t.height;
                             var bw = Math.min(tw, Luxe.screen.w*0.7 );
@@ -780,7 +759,8 @@ class Main extends luxe.Game {
                                 path: hoveredinfo,
                                 bounds: new Rect(0,0,tw,th)
                             });
-                        }
+
+                        });
 
                     case 'wav','ogg','pcm':
 

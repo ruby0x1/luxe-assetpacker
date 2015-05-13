@@ -1,38 +1,33 @@
 
-#if newtypedarrays import snow.io.typedarray.Uint8Array; #end
-#if !newtypedarrays import snow.utils.ByteArray; #end
-import luxe.resource.Resource.JSONResource;
-import luxe.resource.Resource.SoundResource;
-import luxe.resource.Resource.TextResource;
+import luxe.options.ResourceOptions;
+import luxe.resource.Resource;
+import luxe.Resources;
+import snow.api.buffers.Uint8Array;
+import luxe.resource.Resource;
 import phoenix.Texture;
 import phoenix.BitmapFont.BitmapFont;
-
+import snow.system.assets.Asset;
+import snow.types.Types.AudioFormatType;
+import luxe.importers.bitmapfont.BitmapFontParser;
+import luxe.Log.*;
 
 
 typedef AssetPack = {
     var id: String;
-    #if newtypedarrays var items: Map<String, Uint8Array>; #end
-    #if !newtypedarrays var items: Map<String, haxe.io.Bytes>; #end
+    var items: Map<String, Uint8Array>;
 }
 
 class Pack {
 
     public var pack : AssetPack;
 
-    public function new( load_from_file_id:String, ?onload:Pack->Void, ?_do_preload:Bool=true ) {
+    public function new( _id:String, ?onload:Pack->Void, ?_do_preload:Bool=true ) {
 
-        Luxe.loadData(load_from_file_id, function(d){
+        var res = Luxe.resources.bytes(_id);
+        pack = Packer.uncompress_pack(res.asset.bytes.toBytes());
 
-            #if newtypedarrays
-                pack = Packer.uncompress_pack(d.data.buffer);
-            #else
-                pack = Packer.uncompress_pack(d.data.getByteBuffer());
-            #end
-
-            if(_do_preload) preload();
-            if(onload != null) onload(this);
-
-        }); //loadData
+                if(_do_preload) preload();
+                if(onload != null) onload(this);
 
     } //new
 
@@ -40,117 +35,162 @@ class Pack {
 
         inline function loadlog(v) if(!_silent) trace(v);
 
+        var index = 0;
+        var fonts = [];
+
         loadlog('adding to Luxe.resources:');
         for(_id in pack.items.keys()) {
             var ext = haxe.io.Path.extension(_id);
             switch(ext) {
                 case 'png','jpg':
-                    loadlog('\t image: $_id');
+                    loadlog('\t $index image: $_id');
                     create_texture(_id);
                 case 'json':
-                    loadlog('\t json: $_id');
-                    var r = create_json(_id);
-                    // loadlog(r.json);
-                case 'txt','csv','fnt':
-                    loadlog('\t text: $_id');
-                    var r = create_text(_id);
-                    // loadlog(r.text);
+                    loadlog('\t $index json: $_id');
+                    create_json(_id);
+                case 'fnt':
+                    loadlog('\t $index defer font: $_id');
+                    fonts.push(_id);
+                case 'txt','csv':
+                    loadlog('\t $index text: $_id');
+                    create_text(_id);
                 case 'wav','ogg','pcm':
-                    loadlog('\t sound: $_id');
+                    loadlog('\t $index sound: $_id');
                     create_sound(_id);
             }
+            index++;
+        }
+
+        //now do fonts, as they have texture dependencies
+        for(_id in fonts) {
+            loadlog('\t font: $_id');
+            create_font(_id);
         }
 
     } //preload
 
-    public function create_text( _id:String ) : TextResource {
+    public function create_font( _id:String ) {
+
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('font not found in the pack! $_id');
+            return;
+        }
+
+             //fetch the bytes from the pack
+        var _bytes : Uint8Array = pack.items.get(_id);
+        var string : String = _bytes.buffer.toString();
+
+        var info = BitmapFontParser.parse(string);
+        var texture_path = haxe.io.Path.directory(_id);
+        var pages = [];
+
+        for(page in info.pages) {
+            var _path = haxe.io.Path.join([ texture_path, page.file ]);
+            var tex = Luxe.resources.texture(_path);
+            assertnull(tex);
+            pages.push(tex);
+        }
+
+        var opt : BitmapFontOptions = { id:_id, system:Luxe.resources };
+            opt.font_data = string;
+            opt.pages = pages;
+
+        var fnt = new phoenix.BitmapFont(opt);
+            fnt.state = loaded;
+
+        Luxe.resources.add(fnt);
+
+    } //create_font
+
+    public function create_text( _id:String ) {
 
         if(!pack.items.exists(_id)) {
             luxe.Log.log('text not found in the pack! $_id');
-            return null;
+            return;
         }
 
              //fetch the bytes from the pack
-        #if newtypedarrays
         var _bytes : Uint8Array = pack.items.get(_id);
         var string : String = _bytes.buffer.toString();
-        #else
-        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
-        var string : String = _bytes.toString();
-        #end
 
-        var res = new TextResource( _id, string, Luxe.resources );
-        Luxe.resources.cache(res);
+        var opt : TextResourceOptions = { id:_id, system:Luxe.resources };
+            opt.asset = new AssetText(Luxe.snow.assets, _id, string);
 
-        return res;
+        var txt = new TextResource(opt);
+            txt.state = loaded;
+
+        Luxe.resources.add(txt);
+
     }
 
-    public function create_json( _id:String ) : JSONResource {
+    public function create_json( _id:String ) {
         if(!pack.items.exists(_id)) {
             luxe.Log.log('json not found in the pack! $_id');
-            return null;
-        }
-
-        var t = create_text(_id);
-        var json = haxe.Json.parse(t.text);
-
-        var res = new JSONResource( _id, json, Luxe.resources );
-        Luxe.resources.cache(res);
-
-        return res;
-    }
-
-    public function create_sound( _id:String ) : SoundResource {
-        if(!pack.items.exists(_id)) {
-            luxe.Log.log('sound not found in the pack! $_id');
-            return null;
+            return;
         }
 
              //fetch the bytes from the pack
-        #if newtypedarrays
         var _bytes : Uint8Array = pack.items.get(_id);
-        #else
-        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
-        #end
+        var string : String = _bytes.buffer.toString();
+        var _json = haxe.Json.parse(string);
+
+        var opt : JSONResourceOptions = { id:_id, system:Luxe.resources };
+            opt.asset = new AssetJSON(Luxe.snow.assets, _id, _json);
+
+        var json = new JSONResource(opt);
+            json.state = loaded;
+
+        Luxe.resources.add(json);
+
+    }
+
+    public function create_sound( _id:String ) {
+        if(!pack.items.exists(_id)) {
+            luxe.Log.log('sound not found in the pack! $_id');
+            return;
+        }
+
+             //fetch the bytes from the pack
+        var _bytes : Uint8Array = pack.items.get(_id);
 
         var name = haxe.io.Path.withoutDirectory(_id);
             name = haxe.io.Path.withoutExtension(name);
+        var  ext = haxe.io.Path.extension(_id);
 
         luxe.Log.log('create sound from $_id as $name');
-        var sound = Luxe.audio.create_from_bytes(_id, name, _bytes);
+        var _format: AudioFormatType = AudioFormatType.unknown;
+        switch(ext) {
+            case 'ogg': _format = AudioFormatType.ogg;
+            case 'wav': _format = AudioFormatType.wav;
+            case _:
+        }
 
-        var res = new SoundResource( _id, name, Luxe.resources );
-        Luxe.resources.cache(res);
+        Luxe.audio.create_from_bytes(name, _bytes, _format);
 
-        return res;
     }
 
-    public function create_texture( _id:String ) : Texture {
+    public function create_texture( _id:String ) {
 
         if(!pack.items.exists(_id)) {
             luxe.Log.log('texture not found in the pack! $_id');
-            return null;
+            return;
         }
 
             //fetch the bytes from the pack
-        #if newtypedarrays
         var _bytes : Uint8Array = pack.items.get(_id);
-        #else
-        var _bytes = ByteArray.fromBytes(pack.items.get(_id));
-        #end
 
-            //:todo:which resources
-        var resources = Luxe.resources;
+            //create the texture ahead of time
+        var tex = new Texture({ id:_id, system:Luxe.resources });
+            tex.state = loading;
 
-        #if newtypedarrays
-        var texture = Texture.load_from_bytes(_id, _bytes, true);
-        #else
-        var texture = Texture.load_from_bytearray(_id, _bytes, true);
-        #end
+        Luxe.resources.add(tex);
 
-        resources.cache(texture);
+        var _load = Luxe.snow.assets.image_from_bytes(_id, _bytes);
 
-        return texture;
+        _load.then(function(asset:AssetImage) {
+            @:privateAccess tex.from_asset(asset);
+            tex.state = loaded;
+        });
 
     } //loadTexture
 
@@ -160,8 +200,7 @@ class Pack {
 
 class Packer {
 
-    public static var use_lzma = true;
-    public static var use_zip = false;
+    public static var use_zip = true;
 
     public static function compress_pack( pack:AssetPack ) : haxe.io.Bytes {
 
@@ -171,15 +210,6 @@ class Packer {
         var raw = s.toString();
         var finalbytes = haxe.io.Bytes.ofString(raw);
         var presize = finalbytes.length;
-
-        if(use_lzma) {
-
-            var packdata = finalbytes.getData();
-                packdata = snow_lzma_encode(packdata);
-
-            finalbytes = haxe.io.Bytes.ofData(packdata);
-
-        }
 
         if(use_zip) {
 
@@ -209,16 +239,6 @@ class Packer {
 
         }
 
-        if(use_lzma) {
-
-            var inputdata = inputbytes.getData();
-                inputdata = snow_lzma_decode(inputdata);
-
-            inputbytes = haxe.io.Bytes.ofData(inputdata);
-
-        }
-
-
         var uraw = inputbytes.toString();
         var u = new haxe.Unserializer( uraw );
         var pack : AssetPack = u.unserialize();
@@ -233,9 +253,6 @@ class Packer {
         return pack;
 
     } //uncompress_pack
-
-    static var snow_lzma_encode    = snow.utils.Libs.load("snow", "snow_lzma_encode", 1);
-    static var snow_lzma_decode    = snow.utils.Libs.load("snow", "snow_lzma_decode", 1);
 
 } //Packer
 
