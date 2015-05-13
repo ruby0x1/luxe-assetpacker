@@ -23,11 +23,15 @@ class Pack {
 
     public function new( _id:String, ?onload:Pack->Void, ?_do_preload:Bool=true ) {
 
-        var res = Luxe.resources.bytes(_id);
-        pack = Packer.uncompress_pack(res.asset.bytes.toBytes());
+        var get = Luxe.resources.load_bytes(_id);
+            get.then(function(res:BytesResource) {
+
+                pack = Packer.uncompress_pack(res.asset.bytes.toBytes());
 
                 if(_do_preload) preload();
                 if(onload != null) onload(this);
+
+            });
 
     } //new
 
