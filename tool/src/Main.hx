@@ -319,7 +319,7 @@ class Main extends luxe.Game {
 
     function build(_,_) {
 
-        var items : Map<String,Uint8Array> = new Map();
+        var items : Map<String,haxe.io.Bytes> = new Map();
         var wait : Array<snow.api.Promise> = [];
 
         for(l in selectlist) {
@@ -330,7 +330,7 @@ class Main extends luxe.Game {
             var p = Luxe.snow.assets.bytes(l.full_path);
 
                 p.then(function(b:snow.system.assets.Asset.AssetBytes) {
-                    items.set(_id, b.bytes);
+                    items.set(_id, b.bytes.toBytes());
                 });
 
             wait.push( p );

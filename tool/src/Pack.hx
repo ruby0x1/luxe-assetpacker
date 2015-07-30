@@ -14,7 +14,7 @@ import luxe.Log.*;
 
 typedef AssetPack = {
     var id: String;
-    var items: Map<String, Uint8Array>;
+    var items: Map<String, haxe.io.Bytes>;
 }
 
 class Pack {
@@ -81,8 +81,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : Uint8Array = pack.items.get(_id);
-        var string : String = _bytes.buffer.toString();
+        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var string : String = _bytes.toString();
 
         var info = BitmapFontParser.parse(string);
         var texture_path = haxe.io.Path.directory(_id);
@@ -114,8 +114,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : Uint8Array = pack.items.get(_id);
-        var string : String = _bytes.buffer.toString();
+        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var string : String = _bytes.toString();
 
         var opt : TextResourceOptions = { id:_id, system:Luxe.resources };
             opt.asset = new AssetText(Luxe.snow.assets, _id, string);
@@ -134,8 +134,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : Uint8Array = pack.items.get(_id);
-        var string : String = _bytes.buffer.toString();
+        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var string : String = _bytes.toString();
         var _json = haxe.Json.parse(string);
 
         var opt : JSONResourceOptions = { id:_id, system:Luxe.resources };
@@ -155,7 +155,7 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : Uint8Array = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = pack.items.get(_id);
 
         var name = haxe.io.Path.withoutDirectory(_id);
             name = haxe.io.Path.withoutExtension(name);
@@ -169,7 +169,9 @@ class Pack {
             case _:
         }
 
-        Luxe.audio.create_from_bytes(name, _bytes, _format);
+        var _arr:Uint8Array = Uint8Array.fromBytes(_bytes);
+
+        Luxe.audio.create_from_bytes(name, _arr, _format);
 
     }
 
@@ -181,7 +183,7 @@ class Pack {
         }
 
             //fetch the bytes from the pack
-        var _bytes : Uint8Array = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = pack.items.get(_id);
 
             //create the texture ahead of time
         var tex = new Texture({ id:_id, system:Luxe.resources });
@@ -189,7 +191,8 @@ class Pack {
 
         Luxe.resources.add(tex);
 
-        var _load = Luxe.snow.assets.image_from_bytes(_id, _bytes);
+        var _arr = Uint8Array.fromBytes(_bytes);
+        var _load = Luxe.snow.assets.image_from_bytes(_id, _arr);
 
         _load.then(function(asset:AssetImage) {
             @:privateAccess tex.from_asset(asset);
@@ -226,7 +229,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        Sys.println('${pack.id}: packed ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
+        trace('${pack.id}: packed ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
 
         return finalbytes;
 
@@ -252,7 +255,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        Sys.println('${pack.id}: unpacked ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
+        trace('${pack.id}: unpacked ${Lambda.count(pack.items)} items / before:$presize_str / after:$postsize_str');
 
         return pack;
 
