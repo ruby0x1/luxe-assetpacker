@@ -4,10 +4,10 @@ import luxe.Color;
 
 import luxe.resource.Resource;
 import luxe.resource.Resource.BytesResource;
-import mint.Types;
+import mint.types.Types;
 import mint.Control;
-import mint.render.LuxeMintRender;
-import mint.render.Convert;
+import mint.render.luxe.LuxeMintRender;
+import mint.render.luxe.Convert;
 
 import phoenix.Texture;
 import snow.api.buffers.Uint8Array;
@@ -27,7 +27,7 @@ typedef FileInfo = { parcel_name:String, full_path:String };
 class Main extends luxe.Game {
 
     public static var canvas : mint.Canvas;
-    public static var render : mint.render.LuxeMintRender;
+    public static var render : LuxeMintRender;
 
     public static var selectview : mint.List;
     public static var hoverinfo : mint.Label;
@@ -35,15 +35,15 @@ class Main extends luxe.Game {
     public static var selectlist : Array<FileInfo>;
 
     public static var logl : mint.Label;
-    public static var pathr : mint.render.Label;
+    public static var pathr : mint.render.luxe.Label;
 
     override function ready() {
 
         render = new LuxeMintRender();
 
         canvas = new mint.Canvas({
-            bounds: new Rect(0,0,Luxe.screen.w,Luxe.screen.h),
-            renderer: render
+            w:Luxe.screen.w, h:Luxe.screen.h,
+            rendering: render
         });
 
         create_right_menu();
@@ -68,19 +68,19 @@ class Main extends luxe.Game {
 
         quickviewoverlay = new mint.Panel({
             parent: canvas,
-            bounds: new Rect(0,0,Luxe.screen.w,Luxe.screen.h),
+            x:0,y:0,w:Luxe.screen.w,h:Luxe.screen.h,
             visible: false
         });
 
-        quickviewpanel = new mint.ScrollArea({
+        quickviewpanel = new mint.Scroll({
             parent: canvas,
-            bounds: new Rect(Luxe.screen.w * 0.15,Luxe.screen.h*0.05,width,height),
+            x:Luxe.screen.w * 0.15,y:Luxe.screen.h*0.05,w:width,h:height,
             visible: false
         });
 
-        var quickviewr : mint.render.Scroll = cast render.renderers.get(quickviewpanel);
+        var quickviewr : mint.render.luxe.Scroll = cast quickviewpanel.renderer;
             quickviewr.visual.color.a = 0;
-        var quickviewor : mint.render.Panel = cast render.renderers.get(quickviewoverlay);
+        var quickviewor : mint.render.luxe.Panel = cast quickviewoverlay.renderer;
             quickviewor.visual.color.a = 0;
     }
 
@@ -91,48 +91,48 @@ class Main extends luxe.Game {
         new mint.Label({
             parent: canvas,
             name: 'open_folder',
-            bounds: new Rect(left_l,8,left_w,22),
+            x:left_l,y:8,w:left_w,h:22,
             text: 'open folder',
             align: TextAlign.left,
-            point_size: 20,
+            text_size: 20,
             onclick: click_open_folder
         });
 
         new mint.Label({
             parent: canvas,
             name: 'open_pack',
-            bounds: new Rect(left_l,30,left_w,22),
+            x:left_l,y:30,w:left_w,h:22,
             text: 'open packed parcel',
             align: TextAlign.left,
-            point_size: 20,
+            text_size: 20,
             onclick: click_open_pack
         });
 
         new mint.Label({
             parent: canvas,
             name: 'label_select',
-            bounds: new Rect(left_l,64,left_w,16),
+            x:left_l,y:64,w:left_w,h:16,
             text: 'select all',
             align: TextAlign.left,
-            point_size: 16,
+            text_size: 16,
             onclick: click_select_all
         });
 
         new mint.Label({
             parent: canvas,
             name: 'label_selectnone',
-            bounds: new Rect(left_l,80,left_w,16),
+            x:left_l,y:80,w:left_w,h:16,
             text: 'select none',
             align: TextAlign.left,
-            point_size: 16,
+            text_size: 16,
             onclick: click_select_none
         });
 
         var zipcheck = new mint.Checkbox({
             parent: canvas,
             name: 'check_zip',
-            bounds: new Rect(left_l,112,16,16),
-            oncheck: click_toggle_zip,
+            x:left_l,y:112,w:16,h:16,
+            onchange: click_toggle_zip,
             state: true,
         });
 
@@ -140,11 +140,11 @@ class Main extends luxe.Game {
         new mint.Label({
             parent: canvas,
             name: 'label_checkzip',
-            bounds: new Rect(left_l+22,92+16,left_w,16),
+            x:left_l+22,y:92+16,w:left_w,h:16,
             text: 'use zip',
             align: TextAlign.left,
-            point_size: 16,
-            mouse_enabled: true,
+            text_size: 16,
+            mouse_input: true,
             onclick: function(_,_){
                 zipcheck.state = !zipcheck.state;
             }
@@ -275,43 +275,43 @@ class Main extends luxe.Game {
         new mint.Label({
             parent: canvas,
             name: 'version',
-            bounds: new Rect(right_l,16,right_w,16),
+            x:right_l,y:16,w:right_w,h:16,
             text: 'simple asset packer 0.1.0',
             align: TextAlign.right,
-            point_size: 16
+            text_size: 16
         });
 
         new mint.Label({
             parent: canvas,
             name: 'label_path_d',
-            bounds: new Rect(right_l,32,right_w,16),
+            x:right_l,y:32,w:right_w,h:16,
             text: 'base assets path:',
             align: TextAlign.right,
-            point_size: 16,
+            text_size: 16,
         });
 
         var _pathl = new mint.Label({
             parent: canvas,
             name: 'label_path',
-            bounds: new Rect(right_l,64,right_w,16),
+            x:right_l,y:64,w:right_w,h:16,
             text: 'assets/',
             align: TextAlign.right,
-            point_size: 16,
+            text_size: 16,
             onclick: click_path
         });
 
-        pathr = cast render.renderers.get(_pathl);
+        pathr = cast _pathl.renderer;
 
         logl = new mint.Label({
             parent: canvas,
             name: 'log',
-            bounds: new Rect(right_l, 128, right_w, Luxe.screen.h - 128),
+            x:right_l, y:128, w:right_w, h:Luxe.screen.h - 128,
             text: 'log / initialized',
             align: TextAlign.right,
-            point_size: 12
+            text_size: 12
         });
 
-        var _r:mint.render.Label = cast render.renderers.get(logl);
+        var _r:mint.render.luxe.Label = cast logl.renderer;
             _r.text.color.rgb(0x444444);
 
     }
@@ -369,29 +369,29 @@ class Main extends luxe.Game {
 
         selectview = new mint.List({
             parent: canvas,
-            bounds: new Rect(left_w, 80, left_w*2, Luxe.screen.h - 96)
+            x:left_w, y:80, w:left_w*2, h:Luxe.screen.h - 96
         });
 
         hoverinfo = new mint.Label({
             parent: canvas,
             text: '...',
-            bounds: new Rect(left_w, 78-16, (left_w*2)-96-16, 16),
-            point_size: 14,
+            x:left_w, y:78-16, w:(left_w*2)-96-16, h:16,
+            text_size: 14,
         });
 
         selectinfo = new mint.Label({
             parent: canvas,
             text: 'open a folder to begin',
-            bounds: new Rect(left_w, 78-32, (left_w*2)-96-16, 16),
-            point_size: 14,
+            x:left_w, y:78-32, w:(left_w*2)-96-16, h:16,
+            text_size: 14,
         });
 
         selectlist = [];
         new mint.Button({
             parent: canvas,
             text: 'build ...',
-            point_size: 16,
-            bounds: new Rect( selectview.right() - 96, 80-34, 96, 32),
+            text_size: 16,
+            x:selectview.right - 96, y:80-34, w:96, h:32,
             onclick: build
         });
 
@@ -459,7 +459,7 @@ class Main extends luxe.Game {
 
         var itemc = items.length;
         var per_row = 6;
-        var itemw = Math.floor(selectview.bounds.w/per_row) - 4;
+        var itemw = Math.floor(selectview.w/per_row) - 4;
         var rows = Math.ceil(itemc / per_row);
         var height = (rows * (itemw+4))+32+16;
 
@@ -467,8 +467,8 @@ class Main extends luxe.Game {
             name:'$filter.selector',
             parent: selectview,
             title:'$title ($itemc items)',
-            bounds: new Rect(0, 0, selectview.bounds.w+1, height ),
-            closeable: false,
+            x:0, y:0, w:selectview.w+1,h:height,
+            closable: false,
             moveable: false,
             focusable: false
         });
@@ -479,7 +479,7 @@ class Main extends luxe.Game {
 
                 if(rootidx >= itemc) continue;
 
-              var path = normalize(items[rootidx]);
+               var path = normalize(items[rootidx]);
                 var asset_base_path = pathr.text.text;
                 var path_without_open_path = StringTools.replace(path, open_path, '');
 
@@ -498,8 +498,8 @@ class Main extends luxe.Game {
                 var button = new mint.Button({
                     parent: window,
                     text: fname,
-                    point_size: 10,
-                    bounds: new Rect(4+(idx*(itemw+4)),32+(row*(itemw+4)), itemw, itemw)
+                    text_size: 10,
+                    x:4+(idx*(itemw+4)),y:32+(row*(itemw+4)), w:itemw, h:itemw
                 });
 
                 var image = null;
@@ -507,7 +507,7 @@ class Main extends luxe.Game {
                     parent: button,
                     path: 'assets/selected.png',
                     visible: false,
-                    bounds: new Rect(0,0, itemw, itemw),
+                    x:0,y:0, w:itemw, h:itemw,
                 });
 
                 trace('path: $path');
@@ -517,11 +517,11 @@ class Main extends luxe.Game {
                         parent: button,
                         path: path,
                         visible:false,
-                        bounds: new Rect(4,4, itemw-8, itemw-8)
+                        x:4,y:4, w:itemw-8, h:itemw-8
                     });
                 }
 
-                button.mouseenter.listen(function(_,e){
+                button.onmouseenter.listen(function(_,e){
                     if(!selected.visible) {
                         if(image != null) image.visible = true;
                     }
@@ -530,14 +530,14 @@ class Main extends luxe.Game {
                     hoveredbutton = button;
                 });
 
-                button.mouseleave.listen(function(_,_){
+                button.onmouseleave.listen(function(_,_){
                     if(!selected.visible) if(image != null) image.visible = false;
                     hoverinfo.text = '';
                     hoveredinfo = null;
                     hoveredbutton = null;
                 });
 
-                button.mousedown.listen(function(_,_){
+                button.onmousedown.listen(function(_,_){
                     selectbutton(button);
                 });
 
@@ -593,7 +593,7 @@ class Main extends luxe.Game {
 
         open_path = normalize(path);
 
-        var exts = ['json', 'csv', 'txt', 'fnt', 'png', 'jpg', 'wav'];
+        var exts = ['json', 'csv', 'txt', 'fnt', 'png', 'jpg', 'wav', 'ogg', 'pcm'];
         filelist = get_file_list(path, exts, true);
         selectinfo.text = 'found ${filelist.length} assets matching $exts, select files and hit build';
         selectors = [];
@@ -614,41 +614,41 @@ class Main extends luxe.Game {
         if(!focus) {
             focus = true;
             pathr.text.add( new TextEdit() );
-            pathr.hover_color = pathr.normal_color = 0xe2f44d;
-            pathr.text.color.rgb(pathr.hover_color);
+            pathr.color_hover = pathr.color = new Color().rgb(0xe2f44d);
+            pathr.text.color.rgb(0xe2f44d);
         }
 
     }
 
     override function onmousemove(e) {
-        if(canvas!=null) canvas.onmousemove( Convert.mouse_event(e) );
+        if(canvas!=null) canvas.mousemove( Convert.mouse_event(e) );
     }
 
     override function onmousewheel(e) {
-        if(canvas!=null) canvas.onmousewheel( Convert.mouse_event(e) );
+        if(canvas!=null) canvas.mousewheel( Convert.mouse_event(e) );
     }
 
     override function onmouseup(e) {
-        if(canvas!=null) canvas.onmouseup( Convert.mouse_event(e) );
+        if(canvas!=null) canvas.mouseup( Convert.mouse_event(e) );
     }
 
     override function onmousedown(e) {
-        if(canvas!=null) canvas.onmousedown( Convert.mouse_event(e) );
+        if(canvas!=null) canvas.mousedown( Convert.mouse_event(e) );
     }
 
     function defocus() {
         focus = false;
         pathr.text.remove('text_edit');
-        pathr.hover_color = 0xf6007b;
-        pathr.normal_color = 0xffffff;
-        pathr.text.color.rgb(pathr.normal_color);
+        pathr.color_hover.rgb(0xf6007b);
+        pathr.color.rgb(0xffffff);
+        pathr.text.color.rgb(0xffffff);
     }
 
     var ctrldown = false;
     var altdown = false;
     var metadown = false;
     var shiftdown = false;
-    override function onkeydown( e:KeyEvent ) {
+    override function onkeydown( e:luxe.KeyEvent ) {
 
         if(e.keycode == Key.lctrl || e.keycode == Key.rctrl) { ctrldown = true; }
         if(e.keycode == Key.lalt || e.keycode == Key.ralt) { altdown = true; }
@@ -674,13 +674,13 @@ class Main extends luxe.Game {
     var quickview = false;
     var hoveredinfo : Null<String>;
     var hoveredbutton : mint.Button;
-    var quickviewpanel : mint.ScrollArea;
+    var quickviewpanel : mint.Scroll;
     var quickviewoverlay : mint.Panel;
 
     function toggle_quickview() {
 
-        var quickviewr : mint.render.Scroll = cast render.renderers.get(quickviewpanel);
-        var quickviewor : mint.render.Panel = cast render.renderers.get(quickviewoverlay);
+        var quickviewr : mint.render.luxe.Scroll = cast quickviewpanel.renderer;
+        var quickviewor : mint.render.luxe.Panel = cast quickviewoverlay.renderer;
 
         if(quickview) { //hide
 
@@ -690,7 +690,7 @@ class Main extends luxe.Game {
             }
 
             //remove the children from the view
-            for(c in quickviewpanel.children) {
+            for(c in quickviewpanel.container.children) {
                 c.destroy();
             }
 
@@ -702,20 +702,21 @@ class Main extends luxe.Game {
                 canvas.modal = null;
                 hoveredinfo = null;
                 hoveredbutton = null;
-                canvas.find_focus();
+                // canvas.find_focus();
             });
 
         } else { //show
 
             if(hoveredinfo != null) {
                 quickview = true;
-                var b = quickviewpanel.bounds;
                 var ext = haxe.io.Path.extension(hoveredinfo);
                 switch(ext) {
                     case 'json','txt','csv','fnt':
 
-                        b = b.set(Luxe.screen.w*0.15, Luxe.screen.h*0.05,Luxe.screen.w*0.7,Luxe.screen.h*0.9);
-                        quickviewpanel.bounds = b;
+                        quickviewpanel.x=Luxe.screen.w*0.15;
+                        quickviewpanel.y=Luxe.screen.h*0.05;
+                        quickviewpanel.w=Luxe.screen.w*0.7;
+                        quickviewpanel.h=Luxe.screen.h*0.9;
 
                         //load the json string
                         var p = Luxe.resources.load_text(hoveredinfo);
@@ -729,14 +730,14 @@ class Main extends luxe.Game {
                             //create the label to display it
                             var l = new mint.Label({
                                 parent: quickviewpanel,
-                                bounds: new Rect(4,4,dim.x+8, dim.y+8),
-                                point_size: 14,
+                                x:4,y:4,w:dim.x+8, h:dim.y+8,
+                                text_size: 14,
                                 align: TextAlign.left,
                                 text:disptext,
-                                mouse_enabled:false,
+                                mouse_input:false,
                             });
 
-                            var lr : mint.render.Label = cast render.renderers.get(l);
+                            var lr : mint.render.luxe.Label = cast l.renderer;
                                 lr.text.color.rgb(0x121212);
 
                         });
@@ -752,12 +753,14 @@ class Main extends luxe.Game {
                             var bh = Math.min(th, Luxe.screen.h*0.9 );
                             var bx = Luxe.screen.mid.x - (bw/2);
                             var by = Luxe.screen.mid.y - (bh/2);
-                            b = b.set(bx,by,bw,bh);
-                            quickviewpanel.bounds = b;
+                            quickviewpanel.x = bx;
+                            quickviewpanel.y = by;
+                            quickviewpanel.w = bw;
+                            quickviewpanel.h = bh;
                             var i = new mint.Image({
                                 parent: quickviewpanel,
-                                path: hoveredinfo,
-                                bounds: new Rect(0,0,tw,th)
+                                path: t.id,
+                                x:0,y:0,w:tw,h:th
                             });
 
                         });
@@ -767,11 +770,13 @@ class Main extends luxe.Game {
                         var i = new mint.Image({
                             parent: quickviewpanel,
                             path: 'assets/iconmonstr-sound-wave-icon-128.png',
-                            bounds: new Rect(2,2,64,64)
+                            x:2,y:2,w:64,h:64
                         });
 
-                        b = b.set(Luxe.screen.mid.x-34,Luxe.screen.mid.y-34,68,68);
-                        quickviewpanel.bounds = b;
+                        quickviewpanel.x=Luxe.screen.mid.x-34;
+                        quickviewpanel.y=Luxe.screen.mid.y-34;
+                        quickviewpanel.w=68;
+                        quickviewpanel.h=68;
 
                         Luxe.audio.stop('$playing_sound');
 
@@ -787,14 +792,13 @@ class Main extends luxe.Game {
                     case _: _log('quickview / unknown extension $ext');
                 }
 
-                quickviewpanel.bounds = b;
                 quickviewpanel.visible = true;
                 quickviewoverlay.visible = true;
                 quickviewor.visual.color.tween(0.15, {a:0.9});
                 quickviewr.visual.color.tween(0.3, {a:1});
                 canvas.reset_focus(hoveredbutton);
                 canvas.modal = quickviewpanel;
-                canvas.find_focus();
+                // @:privateAccess canvas.find_focus(null);
             }
 
         } //show
@@ -806,7 +810,7 @@ class Main extends luxe.Game {
 
     var playing_sound:UInt = 0;
 
-    override function onkeyup( e:KeyEvent ) {
+    override function onkeyup( e:luxe.KeyEvent ) {
 
         if(e.keycode == Key.lctrl || e.keycode == Key.rctrl) ctrldown = false;
         if(e.keycode == Key.lalt || e.keycode == Key.ralt) altdown = false;
@@ -856,10 +860,10 @@ class Main extends luxe.Game {
 
         Luxe.draw.rectangle({
             depth: 1000,
-            x: control.real_bounds.x,
-            y: control.real_bounds.y,
-            w: control.real_bounds.w,
-            h: control.real_bounds.h,
+            x: control.x,
+            y: control.y,
+            w: control.w,
+            h: control.h,
             color: new Color(1,0,0,0.5),
             immediate: true
         });
