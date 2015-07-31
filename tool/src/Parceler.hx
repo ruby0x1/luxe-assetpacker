@@ -1,4 +1,3 @@
-
 import luxe.Input;
 import luxe.Color;
 
@@ -11,20 +10,18 @@ import mint.render.luxe.Convert;
 
 import phoenix.Texture;
 import snow.api.buffers.Uint8Array;
+
 import Pack;
+import Undoer;
+
 import snow.api.Promise;
 
-@:enum abstract ActionType(Int) from Int to Int {
-    var undo = 0;
-    var redo = 1;
-}
-
-typedef UndoState = { button:mint.Button, before:Bool, after:Bool };
 typedef FileInfo = { parcel_name:String, full_path:String };
 
 //teardown/reopen
 
-class Main extends luxe.Game {
+@:allow(Quickview)
+class Parceler extends luxe.Game {
 
     public static var canvas : mint.Canvas;
     public static var render : LuxeMintRender;
@@ -49,7 +46,7 @@ class Main extends luxe.Game {
         create_right_menu();
         create_left_menu();
         create_select_view();
-        create_quick_view();
+        Quickview.create(canvas);
 
     } //ready
 
@@ -60,29 +57,6 @@ class Main extends luxe.Game {
         return path;
     }
 
-
-    function create_quick_view() {
-
-        var width = Luxe.screen.w * 0.7;
-        var height = Luxe.screen.h * 0.9;
-
-        quickviewoverlay = new mint.Panel({
-            parent: canvas,
-            x:0,y:0,w:Luxe.screen.w,h:Luxe.screen.h,
-            visible: false
-        });
-
-        quickviewpanel = new mint.Scroll({
-            parent: canvas,
-            x:Luxe.screen.w * 0.15,y:Luxe.screen.h*0.05,w:width,h:height,
-            visible: false
-        });
-
-        var quickviewr : mint.render.luxe.Scroll = cast quickviewpanel.renderer;
-            quickviewr.visual.color.a = 0;
-        var quickviewor : mint.render.luxe.Panel = cast quickviewoverlay.renderer;
-            quickviewor.visual.color.a = 0;
-    }
 
     function create_left_menu() {
         var left_w = Luxe.screen.w / 4;
@@ -152,57 +126,6 @@ class Main extends luxe.Game {
 
     }
 
-    var undo_stack:Array< Array<UndoState> >;
-    var redo_stack:Array< Array<UndoState> >;
-
-    function action( ?act:Array<UndoState>, ?type:ActionType) {
-
-        if(undo_stack == null) undo_stack = [];
-        if(redo_stack == null) redo_stack = [];
-
-        if(act != null) {
-            undo_stack.push(act);
-            if(undo_stack.length > 1000) {
-                undo_stack.shift();
-            }
-
-            redo_stack = [];
-
-        } else if(type != null) {
-            switch(type) {
-
-                case undo: {
-                    var lastact = undo_stack.pop();
-                    if(lastact != null) {
-                        for(inst in lastact) {
-                            selectbutton( inst.button, inst.before, true );
-                        }
-
-                        redo_stack.push(lastact);
-                        if(redo_stack.length > 1000) redo_stack.shift();
-                    }
-                } //undo
-
-                case redo: {
-                    var lastundo = redo_stack.pop();
-                    if(lastundo != null) {
-
-                        for(inst in lastundo) {
-                            selectbutton( inst.button, inst.after, true );
-                        }
-
-                        undo_stack.push(lastundo);
-                        if(undo_stack.length > 1000) undo_stack.shift();
-                    }
-                } //redo
-
-            } //switch type
-        } //type != null
-
-        trace('undos: ${undo_stack.length} / redos: ${redo_stack.length}');
-
-    } //action
-
     function selectbutton( button:mint.Button, ?state:Null<Bool>, ?ignore_undo:Bool=false ) {
 
         var selected : mint.Image = cast button.children[1];
@@ -225,7 +148,7 @@ class Main extends luxe.Game {
 
         selectinfo.text = 'selected ${selectlist.length} / ${filelist.length}';
 
-        if(!ignore_undo) action([{ button:button, after:state, before:prestate }]);
+        if(!ignore_undo) Undoer.action([{ button:button, after:state, before:prestate }]);
 
         return { after:state, before:prestate };
     }
@@ -244,9 +167,10 @@ class Main extends luxe.Game {
             idx++;
         }
 
-        action(actions);
+        Undoer.action(actions);
         trace('actions:' + actions.length);
-    }
+
+    } //click_select_all
 
     function click_select_none(_,_) {
 
@@ -259,7 +183,7 @@ class Main extends luxe.Game {
             actions.push({ button:b, after:false, before:sel.before });
         }
 
-        action(actions);
+        Undoer.action(actions);
         trace('actions:' + actions.length);
     }
 
@@ -297,7 +221,6 @@ class Main extends luxe.Game {
             text: 'assets/',
             align: TextAlign.right,
             text_size: 16,
-            onclick: click_path
         });
 
         pathr = cast _pathl.renderer;
@@ -397,7 +320,7 @@ class Main extends luxe.Game {
 
     }
 
-    public function _log( v:Dynamic ) {
+    static function _log( v:Dynamic ) {
         var t = logl.text;
         t = Std.string(v) +'\n'+ t;
         logl.text = t;
@@ -427,7 +350,6 @@ class Main extends luxe.Game {
 
     }
 
-    var focus = false;
 
     function get_file_list( path:String, exts:Array<String>, recursive:Bool=true, ?into:Array<String> ) {
 
@@ -526,15 +448,15 @@ class Main extends luxe.Game {
                         if(image != null) image.visible = true;
                     }
                     hoverinfo.text = display_path;
-                    hoveredinfo = path;
-                    hoveredbutton = button;
+                    Quickview.hoveredinfo = path;
+                    Quickview.hoveredbutton = button;
                 });
 
                 button.onmouseleave.listen(function(_,_){
                     if(!selected.visible) if(image != null) image.visible = false;
                     hoverinfo.text = '';
-                    hoveredinfo = null;
-                    hoveredbutton = null;
+                    Quickview.hoveredinfo = null;
+                    Quickview.hoveredbutton = null;
                 });
 
                 button.onmousedown.listen(function(_,_){
@@ -593,7 +515,7 @@ class Main extends luxe.Game {
 
         open_path = normalize(path);
 
-        var exts = ['json', 'csv', 'txt', 'fnt', 'png', 'jpg', 'wav', 'ogg', 'pcm'];
+        var exts = ['json', 'csv', 'txt', 'glsl', 'fnt', 'png', 'jpg', 'wav', 'ogg', 'pcm'];
         filelist = get_file_list(path, exts, true);
         selectinfo.text = 'found ${filelist.length} assets matching $exts, select files and hit build';
         selectors = [];
@@ -609,39 +531,21 @@ class Main extends luxe.Game {
 
     } //show_folder_list
 
-    function click_path(_, _) {
-
-        if(!focus) {
-            focus = true;
-            pathr.text.add( new TextEdit() );
-            pathr.color_hover = pathr.color = new Color().rgb(0xe2f44d);
-            pathr.text.color.rgb(0xe2f44d);
-        }
-
-    }
 
     override function onmousemove(e) {
-        if(canvas!=null) canvas.mousemove( Convert.mouse_event(e) );
+        canvas.mousemove( Convert.mouse_event(e) );
     }
 
     override function onmousewheel(e) {
-        if(canvas!=null) canvas.mousewheel( Convert.mouse_event(e) );
+        canvas.mousewheel( Convert.mouse_event(e) );
     }
 
     override function onmouseup(e) {
-        if(canvas!=null) canvas.mouseup( Convert.mouse_event(e) );
+        canvas.mouseup( Convert.mouse_event(e) );
     }
 
     override function onmousedown(e) {
-        if(canvas!=null) canvas.mousedown( Convert.mouse_event(e) );
-    }
-
-    function defocus() {
-        focus = false;
-        pathr.text.remove('text_edit');
-        pathr.color_hover.rgb(0xf6007b);
-        pathr.color.rgb(0xffffff);
-        pathr.text.color.rgb(0xffffff);
+        canvas.mousedown( Convert.mouse_event(e) );
     }
 
     var ctrldown = false;
@@ -659,156 +563,15 @@ class Main extends luxe.Game {
         if(e.keycode == Key.key_z) {
             if(ctrldown || metadown) {
                 if(shiftdown) {
-                    //redo
                     trace('redo');
-                    action(ActionType.redo);
+                    Undoer.action(ActionType.redo, selectbutton);
                 } else {
-                    //undo
                     trace('undo');
-                    action(ActionType.undo);
+                    Undoer.action(ActionType.undo, selectbutton);
                 }
             }
         }
     }
-
-    var quickview = false;
-    var hoveredinfo : Null<String>;
-    var hoveredbutton : mint.Button;
-    var quickviewpanel : mint.Scroll;
-    var quickviewoverlay : mint.Panel;
-
-    function toggle_quickview() {
-
-        var quickviewr : mint.render.luxe.Scroll = cast quickviewpanel.renderer;
-        var quickviewor : mint.render.luxe.Panel = cast quickviewoverlay.renderer;
-
-        if(quickview) { //hide
-
-            if(Luxe.audio.exists('$playing_sound')) {
-                var s = Luxe.audio.get('$playing_sound');
-                    if(s != null && s.playing) s.stop();
-            }
-
-            //remove the children from the view
-            for(c in quickviewpanel.container.children) {
-                c.destroy();
-            }
-
-            quickviewor.visual.color.tween(0.05, {a:0});
-            quickviewr.visual.color.tween(0.1, {a:0}).onComplete(function(){
-                quickviewpanel.visible = false;
-                quickviewoverlay.visible = false;
-                quickview = false;
-                canvas.modal = null;
-                hoveredinfo = null;
-                hoveredbutton = null;
-                // canvas.find_focus();
-            });
-
-        } else { //show
-
-            if(hoveredinfo != null) {
-                quickview = true;
-                var ext = haxe.io.Path.extension(hoveredinfo);
-                switch(ext) {
-                    case 'json','txt','csv','fnt':
-
-                        quickviewpanel.x=Luxe.screen.w*0.15;
-                        quickviewpanel.y=Luxe.screen.h*0.05;
-                        quickviewpanel.w=Luxe.screen.w*0.7;
-                        quickviewpanel.h=Luxe.screen.h*0.9;
-
-                        //load the json string
-                        var p = Luxe.resources.load_text(hoveredinfo);
-                        p.then(function(txt:TextResource) {
-
-                            var dim = new luxe.Vector();
-                            var disptext = txt.asset.text.substr(0, 1024);
-                            if(disptext.length == 1024) disptext += '\n\n ... preview ...';
-
-                            Luxe.renderer.font.dimensions_of(disptext, 14, dim);
-                            //create the label to display it
-                            var l = new mint.Label({
-                                parent: quickviewpanel,
-                                x:4,y:4,w:dim.x+8, h:dim.y+8,
-                                text_size: 14,
-                                align: TextAlign.left,
-                                text:disptext,
-                                mouse_input:false,
-                            });
-
-                            var lr : mint.render.luxe.Label = cast l.renderer;
-                                lr.text.color.rgb(0x121212);
-
-                        });
-
-                    case 'png','jpg':
-
-                        var get = Luxe.resources.load_texture(hoveredinfo);
-                        get.then(function(t:Texture){
-
-                            var tw = t.width;
-                            var th = t.height;
-                            var bw = Math.min(tw, Luxe.screen.w*0.7 );
-                            var bh = Math.min(th, Luxe.screen.h*0.9 );
-                            var bx = Luxe.screen.mid.x - (bw/2);
-                            var by = Luxe.screen.mid.y - (bh/2);
-                            quickviewpanel.x = bx;
-                            quickviewpanel.y = by;
-                            quickviewpanel.w = bw;
-                            quickviewpanel.h = bh;
-                            var i = new mint.Image({
-                                parent: quickviewpanel,
-                                path: t.id,
-                                x:0,y:0,w:tw,h:th
-                            });
-
-                        });
-
-                    case 'wav','ogg','pcm':
-
-                        var i = new mint.Image({
-                            parent: quickviewpanel,
-                            path: 'assets/iconmonstr-sound-wave-icon-128.png',
-                            x:2,y:2,w:64,h:64
-                        });
-
-                        quickviewpanel.x=Luxe.screen.mid.x-34;
-                        quickviewpanel.y=Luxe.screen.mid.y-34;
-                        quickviewpanel.w=68;
-                        quickviewpanel.h=68;
-
-                        Luxe.audio.stop('$playing_sound');
-
-                        playing_sound = Luxe.utils.hash(hoveredinfo);
-
-                        if(!Luxe.audio.exists('$playing_sound')) {
-                            Luxe.audio.create(hoveredinfo, '$playing_sound', false);
-                        }
-
-                        Luxe.audio.on('$playing_sound', 'load', _onaudioload);
-                        Luxe.audio.on('$playing_sound', 'end', _onaudioend);
-
-                    case _: _log('quickview / unknown extension $ext');
-                }
-
-                quickviewpanel.visible = true;
-                quickviewoverlay.visible = true;
-                quickviewor.visual.color.tween(0.15, {a:0.9});
-                quickviewr.visual.color.tween(0.3, {a:1});
-                canvas.reset_focus(hoveredbutton);
-                canvas.modal = quickviewpanel;
-                // @:privateAccess canvas.find_focus(null);
-            }
-
-        } //show
-
-    } //toggle_quickview
-
-    function _onaudioload(_) { Luxe.audio.play('$playing_sound'); Luxe.audio.off('$playing_sound', 'load', _onaudioload); }
-    function _onaudioend(_) { toggle_quickview(); Luxe.audio.off('$playing_sound', 'end', _onaudioend); }
-
-    var playing_sound:UInt = 0;
 
     override function onkeyup( e:luxe.KeyEvent ) {
 
@@ -817,62 +580,19 @@ class Main extends luxe.Game {
         if(e.keycode == Key.lmeta || e.keycode == Key.rmeta) metadown = false;
         if(e.keycode == Key.lshift || e.keycode == Key.rshift) shiftdown = false;
 
-        if(e.keycode == Key.key_d && !focus) {
-            debug = !debug;
-        }
-
-        if(e.keycode == Key.enter && focus) {
-            defocus();
-        }
-
         if(e.keycode == Key.space) {
-            toggle_quickview();
+            Quickview.toggle();
         }
 
         if(e.keycode == Key.escape) {
-            if(!focus) {
-                Luxe.shutdown();
-            } else {
-               defocus();
-            }
+            Luxe.shutdown();
         }
 
     } //onkeyup
 
-    var debug : Bool = false;
     override function update(dt:Float) {
-
-        if(canvas!=null) canvas.update(dt);
-
-        if(debug) {
-            for(c in canvas.children) {
-                drawc(c);
-            }
-        }
-
-
+        canvas.update(dt);
     } //update
-
-
-    function drawc(control:Control) {
-
-        if(!control.visible) return;
-
-        Luxe.draw.rectangle({
-            depth: 1000,
-            x: control.x,
-            y: control.y,
-            w: control.w,
-            h: control.h,
-            color: new Color(1,0,0,0.5),
-            immediate: true
-        });
-
-        for(c in control.children) {
-            drawc(c);
-        }
-
-    } //drawc
 
 
 } //Main

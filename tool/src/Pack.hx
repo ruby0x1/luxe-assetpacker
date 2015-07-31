@@ -58,6 +58,9 @@ class Pack {
                 case 'txt','csv':
                     loadlog('\t $index text: $_id');
                     create_text(_id);
+                // case 'glsl':
+                //     loadlog('\t $index shader: $_id');
+                //     create_shader(_id);
                 case 'wav','ogg','pcm':
                     loadlog('\t $index sound: $_id');
                     create_sound(_id);
@@ -199,7 +202,31 @@ class Pack {
             tex.state = loaded;
         });
 
-    } //loadTexture
+    } //create_texture
+
+    // public function create_shader( _id:String ) {
+
+    //     if(!pack.items.exists(_id)) {
+    //         luxe.Log.log('texture not found in the pack! $_id');
+    //         return;
+    //     }
+
+    //         //fetch the bytes from the pack
+    //     var _bytes : haxe.io.Bytes = pack.items.get(_id);
+
+    //         //create the texture ahead of time
+    //     var sh = new phoenix.Shader({ id:_id, system:Luxe.resources });
+    //         sh.state = loading;
+
+    //     Luxe.resources.add(sh);
+
+    //     var _bytes : haxe.io.Bytes = pack.items.get(_id);
+    //     var string : String = _bytes.toString();
+
+    //     sh.from_string(Luxe.renderer.shaders.plain.source.vert, string);
+    //     sh.state = loaded;
+
+    // } //create_shader
 
 
 } //Pack

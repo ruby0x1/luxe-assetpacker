@@ -9,13 +9,14 @@
   },
 
   project : {
-    name : 'assetpack',
+    name : 'parceler',
     version : '1.0.0',
     author : 'luxeengine',
 
     app : {
-      name : 'luxe_assetpack',
-      package : 'com.luxeengine.assetpack'
+      name : 'parceler',
+      main: 'Parceler',
+      package : 'com.luxeengine.parceler'
     },
 
     build : {
