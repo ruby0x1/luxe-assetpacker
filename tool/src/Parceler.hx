@@ -13,6 +13,7 @@ import snow.api.buffers.Uint8Array;
 
 import Pack;
 import Undoer;
+import Session;
 
 import snow.api.Promise;
 
@@ -21,6 +22,7 @@ typedef FileInfo = { parcel_name:String, full_path:String };
 //teardown/reopen
 
 @:allow(Quickview)
+@:allow(Session)
 class Parceler extends luxe.Game {
 
     public static var canvas : mint.Canvas;
@@ -47,6 +49,9 @@ class Parceler extends luxe.Game {
         create_left_menu();
         create_select_view();
         Quickview.create(canvas);
+
+        //check for pre-existing session
+        Session.init();
 
     } //ready
 
@@ -242,7 +247,7 @@ class Parceler extends luxe.Game {
 
     function build(_,_) {
 
-        var items : Map<String,haxe.io.Bytes> = new Map();
+        var items : Map<String,AssetItem> = new Map();
         var wait : Array<snow.api.Promise> = [];
 
         for(l in selectlist) {
@@ -253,7 +258,7 @@ class Parceler extends luxe.Game {
             var p = Luxe.snow.assets.bytes(l.full_path);
 
                 p.then(function(b:snow.system.assets.Asset.AssetBytes) {
-                    items.set(_id, b.bytes.toBytes());
+                    items.set(_id, { bytes:b.bytes.toBytes(), meta:{id:_id} });
                 });
 
             wait.push( p );

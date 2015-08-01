@@ -11,10 +11,14 @@ import snow.types.Types.AudioFormatType;
 import luxe.importers.bitmapfont.BitmapFontParser;
 import luxe.Log.*;
 
+typedef AssetItem = {
+    bytes:haxe.io.Bytes,
+    meta:Dynamic
+}
 
 typedef AssetPack = {
     var id: String;
-    var items: Map<String, haxe.io.Bytes>;
+    var items: Map<String, AssetItem>;
 }
 
 class Pack {
@@ -84,7 +88,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var _item : AssetItem = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = _item.bytes;
         var string : String = _bytes.toString();
 
         var info = BitmapFontParser.parse(string);
@@ -117,7 +122,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var _item : AssetItem = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = _item.bytes;
         var string : String = _bytes.toString();
 
         var opt : TextResourceOptions = { id:_id, system:Luxe.resources };
@@ -137,7 +143,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var _item : AssetItem = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = _item.bytes;
         var string : String = _bytes.toString();
         var _json = haxe.Json.parse(string);
 
@@ -158,7 +165,8 @@ class Pack {
         }
 
              //fetch the bytes from the pack
-        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var _item : AssetItem = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = _item.bytes;
 
         var name = haxe.io.Path.withoutDirectory(_id);
             name = haxe.io.Path.withoutExtension(name);
@@ -186,7 +194,8 @@ class Pack {
         }
 
             //fetch the bytes from the pack
-        var _bytes : haxe.io.Bytes = pack.items.get(_id);
+        var _item : AssetItem = pack.items.get(_id);
+        var _bytes : haxe.io.Bytes = _item.bytes;
 
             //create the texture ahead of time
         var tex = new Texture({ id:_id, system:Luxe.resources });
