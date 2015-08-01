@@ -32,6 +32,7 @@ class Undoer {
             switch(type) {
 
                 case undo: {
+                    trace('undo');
                     var lastact = undo_stack.pop();
                     if(lastact != null) {
                         if(cb != null) {
@@ -47,6 +48,7 @@ class Undoer {
                 } //undo
 
                 case redo: {
+                    trace('redo');
                     var lastundo = redo_stack.pop();
                     if(lastundo != null) {
 

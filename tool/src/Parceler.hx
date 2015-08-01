@@ -1,52 +1,67 @@
+
+//lib
+import luxe.Log.*;
 import luxe.Input;
 import luxe.Color;
-
+import phoenix.Texture;
 import luxe.resource.Resource;
 import luxe.resource.Resource.BytesResource;
-import mint.types.Types;
-import mint.Control;
-import mint.render.luxe.LuxeMintRender;
-import mint.render.luxe.Convert;
 
-import phoenix.Texture;
+import snow.api.Promise;
 import snow.api.buffers.Uint8Array;
 
+//ui
+import mint.Control;
+import mint.types.Types;
+import mint.render.luxe.Convert;
+import mint.layout.margins.Margins;
+
+//tools
 import Pack;
 import Undoer;
 import Session;
 
-import snow.api.Promise;
 
-typedef FileInfo = { parcel_name:String, full_path:String };
-
-//teardown/reopen
+typedef FileInfo = { parcel_name:String, full_path:String, selected : Bool };
 
 @:allow(Quickview)
 @:allow(Session)
 class Parceler extends luxe.Game {
 
     public static var canvas : mint.Canvas;
-    public static var render : LuxeMintRender;
+    public static var layout : Margins;
 
     public static var selectview : mint.List;
     public static var hoverinfo : mint.Label;
     public static var selectinfo : mint.Label;
     public static var selectlist : Array<FileInfo>;
 
-    public static var logl : mint.Label;
-    public static var pathr : mint.render.luxe.Label;
+    override function config(config:luxe.AppConfig) {
+
+        var _r = def(config.runtime, {});
+        var _ext = def(_r.extensions, {});
+
+        ext_textures = def(_ext.textures, ext_textures);
+        ext_sounds = def(_ext.sounds, ext_sounds);
+        ext_texts = def(_ext.texts, ext_texts);
+        ext_jsons = def(_ext.jsons, ext_jsons);
+        ext_bytes = def(_ext.bytes, ext_bytes);
+
+        return config;
+
+    } //config
 
     override function ready() {
 
-        render = new LuxeMintRender();
-
+        layout = new Margins();
         canvas = new mint.Canvas({
             w:Luxe.screen.w, h:Luxe.screen.h,
-            rendering: render
+            rendering: new mint.render.luxe.LuxeMintRender()
         });
 
+        create_log();
         create_right_menu();
-        create_left_menu();
+        create_top_menu();
         create_select_view();
         Quickview.create(canvas);
 
@@ -63,73 +78,109 @@ class Parceler extends luxe.Game {
     }
 
 
-    function create_left_menu() {
+    function hover_image(img:mint.Image, tip:String) {
+
+        inline function handler(h:Bool) {
+            var r:mint.render.luxe.Image = cast img.renderer;
+            var c = h ? 0xf6007b : 0xffffff;
+            r.visual.color.rgb(c);
+        }
+
+        img.onmouseleave.listen(function(_,_){ handler(false); menu_label.text = ''; });
+        img.onmouseenter.listen(function(_,_){ handler(true); menu_label.text = tip; });
+
+    } //hover_image
+
+    var menu_label : mint.Label;
+
+    function create_top_menu() {
+
         var left_w = Luxe.screen.w / 4;
         var left_l = 16;
 
-        new mint.Label({
+        var _load = new mint.Image({
+            parent: canvas,
+            name: 'load_session',
+            x:16+(48*0),y:16,w:32,h:32, mouse_input: true,
+            path: 'assets/iconmonstr-folder-2-icon-32.png',
+        });
+
+        var _save = new mint.Image({
+            parent: canvas,
+            name: 'save_session',
+            x:16+(48*1),y:16,w:30,h:30,mouse_input: true,
+            path: 'assets/iconmonstr-save-3-icon-32.png',
+        });
+
+        var _refresh = new mint.Image({
+            parent: canvas,
+            name: 'refresh_session',
+            x:16+(48*2),y:16,w:34,h:34,mouse_input: true,
+            path: 'assets/iconmonstr-refresh-3-icon-32.png',
+        });
+
+        var _reset = new mint.Image({
+            parent: canvas,
+            name: 'reset_session',
+            x:16+(48*3),y:16,w:30,h:30,mouse_input: true,
+            path: 'assets/iconmonstr-refresh-2-icon-32.png',
+        });
+
+        var _folder = new mint.Image({
             parent: canvas,
             name: 'open_folder',
-            x:left_l,y:8,w:left_w,h:22,
-            text: 'open folder',
-            align: TextAlign.left,
-            text_size: 20,
-            onclick: click_open_folder
+            x:16+(48*5),y:16,w:32,h:32,mouse_input: true,
+            path: 'assets/iconmonstr-add-folder-2-icon-32.png',
         });
 
-        new mint.Label({
+        var _selectall = new mint.Image({
             parent: canvas,
-            name: 'open_pack',
-            x:left_l,y:30,w:left_w,h:22,
-            text: 'open packed parcel',
-            align: TextAlign.left,
-            text_size: 20,
-            onclick: click_open_pack
+            name: 'select_all',
+            x:16+(48*7),y:20,w:24,h:24,mouse_input: true,
+            path: 'assets/iconmonstr-selection-10-icon-32.png',
         });
 
-        new mint.Label({
+        var _selectnone = new mint.Image({
             parent: canvas,
-            name: 'label_select',
-            x:left_l,y:64,w:left_w,h:16,
-            text: 'select all',
-            align: TextAlign.left,
-            text_size: 16,
-            onclick: click_select_all
+            name: 'select_none',
+            x:16+(48*8),y:20,w:24,h:24,mouse_input: true,
+            path: 'assets/iconmonstr-selection-11-icon-32.png',
         });
 
-        new mint.Label({
+        var _build = new mint.Image({
             parent: canvas,
-            name: 'label_selectnone',
-            x:left_l,y:80,w:left_w,h:16,
-            text: 'select none',
-            align: TextAlign.left,
-            text_size: 16,
-            onclick: click_select_none
+            name: 'build',
+            x:16+(48*10),y:20,w:24,h:24,mouse_input: true,
+            path: 'assets/iconmonstr-shipping-box-9-icon-32.png',
         });
 
-        var zipcheck = new mint.Checkbox({
+        menu_label = new mint.Label({
             parent: canvas,
-            name: 'check_zip',
-            x:left_l,y:112,w:16,h:16,
-            onchange: click_toggle_zip,
-            state: true,
+            text: '...',
+            align: TextAlign.right,
+            x:16, y:20, w:Luxe.screen.w*0.75, h:24,
+            text_size: 24,
         });
 
+        _load.onmouseup.listen(function(_,_){ Session.load(); });
+        _save.onmouseup.listen(function(_,_){ Session.save(shiftdown); });
+        _refresh.onmouseup.listen(function(_,_){ });
+        _reset.onmouseup.listen(function(_,_){ Session.reset_session(); });
+        _folder.onmouseup.listen(click_open_folder);
+        _selectall.onmouseup.listen(click_select_all);
+        _selectnone.onmouseup.listen(click_select_none);
+        _build.onmouseup.listen(build);
 
-        new mint.Label({
-            parent: canvas,
-            name: 'label_checkzip',
-            x:left_l+22,y:92+16,w:left_w,h:16,
-            text: 'use zip',
-            align: TextAlign.left,
-            text_size: 16,
-            mouse_input: true,
-            onclick: function(_,_){
-                zipcheck.state = !zipcheck.state;
-            }
-        });
+        hover_image(_load, 'load session');
+        hover_image(_save, 'save session');
+        hover_image(_refresh, 'refresh session');
+        hover_image(_reset, 'reset session');
+        hover_image(_folder, 'add folder');
+        hover_image(_selectall, 'select all');
+        hover_image(_selectnone, 'select none');
+        hover_image(_build, 'build');
 
-    }
+    } //create_top_menu
 
     function selectbutton( button:mint.Button, ?state:Null<Bool>, ?ignore_undo:Bool=false ) {
 
@@ -205,42 +256,65 @@ class Parceler extends luxe.Game {
             parent: canvas,
             name: 'version',
             x:right_l,y:16,w:right_w,h:16,
-            text: 'simple asset packer 0.1.0',
+            text: 'simple asset packer 0.2.0',
             align: TextAlign.right,
             text_size: 16
         });
 
+        hoverinfo = new mint.Label({
+            parent: canvas,
+            text: '...',
+            align: TextAlign.right,
+            x:right_l, y:64, w:right_w, h:16,
+            text_size: 14,
+        });
+
+        selectinfo = new mint.Label({
+            parent: canvas,
+            text: 'open a folder to begin',
+            align: TextAlign.right,
+            x:right_l, y:48, w:right_w, h:16,
+            text_size: 14,
+        });
+
+        // new mint.Label({
+        //     parent: canvas,
+        //     name: 'label_path_d',
+        //     x:right_l,y:32,w:right_w,h:16,
+        //     text: 'base assets path:',
+        //     align: TextAlign.right,
+        //     text_size: 16,
+        // });
+
+        // var _pathl = new mint.Label({
+        //     parent: canvas,
+        //     name: 'label_path',
+        //     x:right_l,y:64,w:right_w,h:16,
+        //     text: 'assets/',
+        //     align: TextAlign.right,
+        //     text_size: 16,
+        // });
+
+        var zipcheck = new mint.Checkbox({
+            parent: canvas,
+            name: 'check_zip',
+            x:Luxe.screen.w-32,y:96,w:16,h:16,
+            onchange: click_toggle_zip,
+            state: true,
+        });
+
         new mint.Label({
             parent: canvas,
-            name: 'label_path_d',
-            x:right_l,y:32,w:right_w,h:16,
-            text: 'base assets path:',
+            name: 'label_checkzip',
+            x:Luxe.screen.w-32-64-8,y:96-2,w:64,h:16,
+            text: 'use zip',
             align: TextAlign.right,
             text_size: 16,
+            mouse_input: true,
+            onclick: function(_,_){
+                zipcheck.state = !zipcheck.state;
+            }
         });
-
-        var _pathl = new mint.Label({
-            parent: canvas,
-            name: 'label_path',
-            x:right_l,y:64,w:right_w,h:16,
-            text: 'assets/',
-            align: TextAlign.right,
-            text_size: 16,
-        });
-
-        pathr = cast _pathl.renderer;
-
-        logl = new mint.Label({
-            parent: canvas,
-            name: 'log',
-            x:right_l, y:128, w:right_w, h:Luxe.screen.h - 128,
-            text: 'log / initialized',
-            align: TextAlign.right,
-            text_size: 12
-        });
-
-        var _r:mint.render.luxe.Label = cast logl.renderer;
-            _r.text.color.rgb(0x444444);
 
     }
 
@@ -293,37 +367,35 @@ class Parceler extends luxe.Game {
 
     function create_select_view() {
 
-        var left_w = Luxe.screen.w / 4;
+        var left_w = 16;
+        var mid_w = Luxe.screen.w - (Luxe.screen.w/4);
 
         selectview = new mint.List({
             parent: canvas,
-            x:left_w, y:80, w:left_w*2, h:Luxe.screen.h - 96
-        });
-
-        hoverinfo = new mint.Label({
-            parent: canvas,
-            text: '...',
-            x:left_w, y:78-16, w:(left_w*2)-96-16, h:16,
-            text_size: 14,
-        });
-
-        selectinfo = new mint.Label({
-            parent: canvas,
-            text: 'open a folder to begin',
-            x:left_w, y:78-32, w:(left_w*2)-96-16, h:16,
-            text_size: 14,
+            x:left_w, y:64, w:mid_w, h:Luxe.screen.h - 80
         });
 
         selectlist = [];
-        new mint.Button({
+
+    } //create_select_view
+
+    static var logl : mint.Label;
+    function create_log() {
+
+        var right_w = Luxe.screen.w / 4;
+        var right_l = Luxe.screen.w - right_w - 16;
+
+        logl = new mint.Label({
             parent: canvas,
-            text: 'build ...',
-            text_size: 16,
-            x:selectview.right - 96, y:80-34, w:96, h:32,
-            onclick: build
+            name: 'log',
+            x:right_l, y:128, w:right_w, h:Luxe.screen.h - 128,
+            text: 'log / initialized',
+            align: TextAlign.right,
+            options: { color:new Color().rgb(0x444444) },
+            text_size: 12
         });
 
-    }
+    } //create_log
 
     static function _log( v:Dynamic ) {
         var t = logl.text;
@@ -380,13 +452,14 @@ class Parceler extends luxe.Game {
 
     } //get_file_list
 
+    var prev_window:mint.Window = null;
     function show_selector( title:String, filter:String, items:Array<String> ) {
 
         // trace('show $filter on ${items.length} ');
 
         var itemc = items.length;
         var per_row = 6;
-        var itemw = Math.floor(selectview.w/per_row) - 4;
+        var itemw = Math.floor(selectview.w/per_row) - 6;
         var rows = Math.ceil(itemc / per_row);
         var height = (rows * (itemw+4))+32+16;
 
@@ -394,10 +467,11 @@ class Parceler extends luxe.Game {
             name:'$filter.selector',
             parent: selectview,
             title:'$title ($itemc items)',
-            x:0, y:0, w:selectview.w+1,h:height,
+            x:0, y:0, w:selectview.w-8,h:height,
             closable: false,
             moveable: false,
-            focusable: false
+            focusable: false,
+            collapsible: true
         });
 
         var rootidx = 0;
@@ -407,7 +481,7 @@ class Parceler extends luxe.Game {
                 if(rootidx >= itemc) continue;
 
                var path = normalize(items[rootidx]);
-                var asset_base_path = pathr.text.text;
+                var asset_base_path = Session.session.path_base;
                 var path_without_open_path = StringTools.replace(path, open_path, '');
 
                 trace('base path: $asset_base_path');
@@ -417,7 +491,7 @@ class Parceler extends luxe.Game {
                 var display_path = haxe.io.Path.join([ asset_base_path, path_without_open_path ]);
                     display_path = normalize(display_path);
 
-                var path_info = { parcel_name:display_path, full_path:path };
+                var path_info = { parcel_name:display_path, full_path:path, selected:false };
 
                 var fname = haxe.io.Path.withoutDirectory(path);
                     fname = haxe.io.Path.withoutExtension(fname);
@@ -439,7 +513,7 @@ class Parceler extends luxe.Game {
 
                 trace('path: $path');
 
-                if(filter == 'png' || filter == 'jpg') {
+                if(is_texture(filter)) {
                     image = new mint.Image({
                         parent: button,
                         path: path,
@@ -477,7 +551,15 @@ class Parceler extends luxe.Game {
 
         selectview.add_item(window);
 
-    }
+        if(prev_window != null) {
+            layout.anchor(window, prev_window, top, bottom);
+        }
+
+        window.oncollapse.listen(function(_){ selectview.view.update_container(); });
+
+        prev_window = window;
+
+    } //show_selector
 
     function show_parcel_list( path:String ) {
 
@@ -520,14 +602,22 @@ class Parceler extends luxe.Game {
 
         open_path = normalize(path);
 
-        var exts = ['json', 'csv', 'txt', 'glsl', 'fnt', 'png', 'jpg', 'wav', 'ogg', 'pcm'];
+        var exts = [];
+            exts = exts.concat(ext_jsons);
+            exts = exts.concat(ext_bytes);
+            exts = exts.concat(ext_texts);
+            exts = exts.concat(ext_textures);
+            exts = exts.concat(ext_sounds);
+
         filelist = get_file_list(path, exts, true);
-        selectinfo.text = 'found ${filelist.length} assets matching $exts, select files and hit build';
+        selectinfo.text = 'found ${filelist.length} assets';
         selectors = [];
         selector_info = new Map();
 
         _log('open folder / found ${filelist.length}');
-        _log('open folder / when matching ' + exts);
+        _log('open folder / when matching \n' + exts);
+
+        prev_window = null;
 
         for(ext in exts) {
             var items = filelist.filter(function(_s) return ext == haxe.io.Path.extension(_s) );
@@ -535,7 +625,6 @@ class Parceler extends luxe.Game {
         }
 
     } //show_folder_list
-
 
     override function onmousemove(e) {
         canvas.mousemove( Convert.mouse_event(e) );
@@ -568,15 +657,14 @@ class Parceler extends luxe.Game {
         if(e.keycode == Key.key_z) {
             if(ctrldown || metadown) {
                 if(shiftdown) {
-                    trace('redo');
                     Undoer.action(ActionType.redo, selectbutton);
                 } else {
-                    trace('undo');
                     Undoer.action(ActionType.undo, selectbutton);
                 }
             }
         }
-    }
+
+    } //onkeydown
 
     override function onkeyup( e:luxe.KeyEvent ) {
 
@@ -589,6 +677,10 @@ class Parceler extends luxe.Game {
             Quickview.toggle();
         }
 
+        if(e.keycode == Key.key_s && (ctrldown||metadown)) {
+            Session.save(shiftdown);
+        }
+
         if(e.keycode == Key.escape) {
             Luxe.shutdown();
         }
@@ -599,6 +691,17 @@ class Parceler extends luxe.Game {
         canvas.update(dt);
     } //update
 
+    static var ext_textures = ['jpg', 'png', 'tga', 'psd', 'bmp', 'gif'];
+    static var ext_sounds = ['wav','pcm','ogg'];
+    static var ext_texts = ['csv', 'txt', 'glsl', 'fnt'];
+    static var ext_jsons = ['json'];
+    static var ext_bytes = [];
+
+    function is_texture(ext:String) return ext_textures.indexOf(ext) != -1;
+    function is_sound(ext:String)   return ext_sounds.indexOf(ext) != -1;
+    function is_text(ext:String)    return ext_texts.indexOf(ext) != -1;
+    function is_json(ext:String)    return ext_jsons.indexOf(ext) != -1;
+    function is_bytes(ext:String)   return ext_bytes.indexOf(ext) != -1;
 
 } //Main
 
