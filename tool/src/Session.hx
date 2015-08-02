@@ -3,7 +3,8 @@ import Parceler.FileInfo;
 typedef ParcelerSession = {
     flag_zip : Bool,
     path_base : String,
-    paths : Array<FileInfo>
+    paths : Array<String>,
+    files : Array<FileInfo>
 }
 
 @:allow(Parceler)
@@ -60,6 +61,8 @@ class Session {
         path = _path;
         sys.io.File.saveContent(_path, haxe.Json.stringify(session));
 
+        trace('session save ' + _path);
+
     } //write_session
 
 
@@ -67,11 +70,15 @@ class Session {
 
         var content = sys.io.File.getContent(_path);
 
+        trace('session load ' + _path);
+
         if(content != null && content.length > 0) {
 
             try {
                 session = cast haxe.Json.parse(content);
                 path = _path;
+                    //readd the files to ensure disk changes are caught
+                for(p in session.paths) add_files(p);
             } catch(e:Dynamic) {
                 Parceler._log('action / session failed to load\n$_path');
                 reset_session();
@@ -84,18 +91,82 @@ class Session {
 
     } //read_session
 
+    static function add_path( _path:String ) {
+
+        if(session.paths.indexOf(_path) == -1) {
+            session.paths.push(_path);
+            add_files(_path);
+        }
+
+    } //add_path
+
+    static function has_file(_path:String) {
+        for(f in session.files) if(f.full_path == _path) return true;
+        return false;
+    }
+
+    static function add_files(_root:String) {
+
+        var _list = [];
+
+        get_file_list(_root, Parceler.extensions, true, _list);
+
+        for(_path in _list) {
+            if(has_file(_path)) continue;
+
+            var _asset_path = StringTools.replace(_path, _root, '');
+            var _display_path = haxe.io.Path.join([ session.path_base, _asset_path ]);
+                _display_path = Parceler.normalize(_display_path);
+            var path_info = { parcel_name:_display_path, full_path:_path, selected:false };
+
+            session.files.push(path_info);
+
+        } //each _path
+
+    } //add_files
+
     static function reset_session() {
 
         Parceler._log('action / session reset');
+        trace('session reset');
 
         path = null;
 
         session = {
             flag_zip: true,
             path_base: 'assets/',
-            paths:[]
+            paths:[],
+            files:[]
         }
 
     } //reset_session
 
+//internal
+
+
+    static function get_file_list( _path:String, _exts:Array<String>, _recursive:Bool=true, ?_into:Array<String> ) {
+
+        if(_into == null) _into = [];
+
+            var nodes = sys.FileSystem.readDirectory(_path);
+            for(node in nodes) {
+                node = haxe.io.Path.join([_path, node]);
+                var is_dir = sys.FileSystem.exists(node) && sys.FileSystem.isDirectory(node);
+                if(!is_dir) {
+
+                    var ext = haxe.io.Path.extension(node);
+                    if(_exts.indexOf(ext) != -1) {
+                        if(_into.indexOf(node) == -1) {
+                            _into.push(node);
+                        }
+                    }
+
+                } else {
+                    if(_recursive) _into = get_file_list(node, _exts, _into);
+                }
+            }
+
+        return _into;
+
+    } //get_file_list
 } //Session

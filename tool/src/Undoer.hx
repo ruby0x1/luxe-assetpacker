@@ -1,12 +1,12 @@
 
-import mint.Button;
+import Parceler.Node;
 
 @:enum abstract ActionType(Int) from Int to Int {
     var undo = 0;
     var redo = 1;
 }
 
-typedef UndoState = { button:mint.Button, before:Bool, after:Bool };
+typedef UndoState = { node:Node, before:Bool, after:Bool };
 
 
 @:allow(Parceler)
@@ -15,7 +15,7 @@ class Undoer {
     static var undo_stack:Array< Array<UndoState> > = [];
     static var redo_stack:Array< Array<UndoState> > = [];
 
-    static function action( ?act:Array<UndoState>, ?type:ActionType, ?cb:Button->Bool->Bool->Void) {
+    static function action( ?act:Array<UndoState>, ?type:ActionType, ?cb:Node->Bool->Bool->Void) {
 
         if(act != null) {
 
@@ -37,8 +37,7 @@ class Undoer {
                     if(lastact != null) {
                         if(cb != null) {
                             for(inst in lastact) {
-                                // selectbutton( inst.button, inst.before, true );
-                                cb(inst.button, inst.before, true);
+                                cb(inst.node, inst.before, true);
                             }
                         }
 
@@ -54,8 +53,7 @@ class Undoer {
 
                         if(cb != null) {
                             for(inst in lastundo) {
-                                // selectbutton( inst.button, inst.after, true );
-                                cb(inst.button, inst.after, true);
+                                cb(inst.node, inst.after, true);
                             }
                         }
 

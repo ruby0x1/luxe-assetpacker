@@ -23,6 +23,7 @@ import Session;
 
 
 typedef FileInfo = { parcel_name:String, full_path:String, selected : Bool };
+typedef Node = { button:mint.Button, info:FileInfo };
 
 @:allow(Quickview)
 @:allow(Session)
@@ -59,18 +60,31 @@ class Parceler extends luxe.Game {
             rendering: new mint.render.luxe.LuxeMintRender()
         });
 
+        extensions = extensions.concat(ext_jsons);
+        extensions = extensions.concat(ext_bytes);
+        extensions = extensions.concat(ext_texts);
+        extensions = extensions.concat(ext_textures);
+        extensions = extensions.concat(ext_sounds);
+
+        //order matters
+
         create_log();
+
+        Session.init();
+
         create_right_menu();
         create_top_menu();
         create_select_view();
         Quickview.create(canvas);
 
-        //check for pre-existing session
-        Session.init();
+
+        if(Session.session.files.length > 0) {
+            refresh_session();
+        }
 
     } //ready
 
-    function normalize(path:String) {
+    static function normalize(path:String) {
         path = haxe.io.Path.normalize(path);
         path = StringTools.replace(path, '\\','/');
         path = StringTools.replace(path, '\\\\','/');
@@ -164,8 +178,8 @@ class Parceler extends luxe.Game {
 
         _load.onmouseup.listen(function(_,_){ Session.load(); });
         _save.onmouseup.listen(function(_,_){ Session.save(shiftdown); });
-        _refresh.onmouseup.listen(function(_,_){ });
-        _reset.onmouseup.listen(function(_,_){ Session.reset_session(); });
+        _refresh.onmouseup.listen(click_refresh_session);
+        _reset.onmouseup.listen(click_reset_session);
         _folder.onmouseup.listen(click_open_folder);
         _selectall.onmouseup.listen(click_select_all);
         _selectnone.onmouseup.listen(click_select_none);
@@ -182,9 +196,11 @@ class Parceler extends luxe.Game {
 
     } //create_top_menu
 
-    function selectbutton( button:mint.Button, ?state:Null<Bool>, ?ignore_undo:Bool=false ) {
+    function selectnode( node:Node, ?state:Null<Bool>, ?ignore_undo:Bool=false ) {
 
-        var selected : mint.Image = cast button.children[1];
+        trace('select ' + node.info.parcel_name + ': ' + state);
+
+        var selected : mint.Image = cast node.button.children[1];
 
         var prestate = selected.visible;
 
@@ -195,19 +211,21 @@ class Parceler extends luxe.Game {
             selected.visible = state;
         }
 
-        var path_info = selector_info.get(button);
+        node.info.selected = state;
+
         if(state) {
-            selectlist.push(path_info);
+            selectlist.push(node.info);
         } else {
-            selectlist.remove(path_info);
+            selectlist.remove(node.info);
         }
 
-        selectinfo.text = 'selected ${selectlist.length} / ${filelist.length}';
+        selectinfo.text = 'selected ${selectlist.length} / ${Session.session.files.length}';
 
-        if(!ignore_undo) Undoer.action([{ button:button, after:state, before:prestate }]);
+        if(!ignore_undo) Undoer.action([{ node:node, after:state, before:prestate }]);
 
         return { after:state, before:prestate };
-    }
+
+    } //selectnode
 
     function click_select_all(_,_) {
 
@@ -217,9 +235,9 @@ class Parceler extends luxe.Game {
         var actions = [];
 
         var idx = 0;
-        for(b in selectors) {
-            var sel = selectbutton(b, true, true);
-            actions.push({ button:b, after:true, before:sel.before });
+        for(n in selectors) {
+            var sel = selectnode(n, true, true);
+            actions.push({ node:n, after:true, before:sel.before });
             idx++;
         }
 
@@ -234,9 +252,9 @@ class Parceler extends luxe.Game {
         if(selectors.length == 0) return;
 
         var actions = [];
-        for(b in selectors) {
-            var sel = selectbutton(b, false, true);
-            actions.push({ button:b, after:false, before:sel.before });
+        for(n in selectors) {
+            var sel = selectnode(n, false, true);
+            actions.push({ node:n, after:false, before:sel.before });
         }
 
         Undoer.action(actions);
@@ -245,6 +263,7 @@ class Parceler extends luxe.Game {
 
     function click_toggle_zip(now:Bool, prev:Bool) {
         Packer.use_zip = now;
+        Session.session.flag_zip = now;
     } //click_toggle_zip
 
     function create_right_menu() {
@@ -266,7 +285,7 @@ class Parceler extends luxe.Game {
             text: '...',
             align: TextAlign.right,
             x:right_l, y:64, w:right_w, h:16,
-            text_size: 14,
+            text_size: 10,
         });
 
         selectinfo = new mint.Label({
@@ -300,7 +319,7 @@ class Parceler extends luxe.Game {
             name: 'check_zip',
             x:Luxe.screen.w-32,y:96,w:16,h:16,
             onchange: click_toggle_zip,
-            state: true,
+            state: Session.session.flag_zip
         });
 
         new mint.Label({
@@ -383,16 +402,18 @@ class Parceler extends luxe.Game {
     function create_log() {
 
         var right_w = Luxe.screen.w / 4;
-        var right_l = Luxe.screen.w - right_w - 16;
+        var right_l = Luxe.screen.w - right_w;
 
         logl = new mint.Label({
             parent: canvas,
             name: 'log',
-            x:right_l, y:128, w:right_w, h:Luxe.screen.h - 128,
+            x:right_l+24, y:128, w:right_w-32, h:Luxe.screen.h - 128,
             text: 'log / initialized',
             align: TextAlign.right,
+            align_vertical: TextAlign.top,
+            bounds_wrap: true,
             options: { color:new Color().rgb(0x444444) },
-            text_size: 12
+            text_size: 11
         });
 
     } //create_log
@@ -400,60 +421,42 @@ class Parceler extends luxe.Game {
     static function _log( v:Dynamic ) {
         var t = logl.text;
         t = Std.string(v) +'\n'+ t;
+        var m = 1024;
+        if(t.length > m) {
+            t = t.substr(0, m);
+        }
         logl.text = t;
     }
 
-    function click_open_pack(_,_) {
+    function refresh_session() {
+        selectview.clear();
+        show_files();
+    } //refresh_session
 
-        var open_path = Luxe.core.app.io.module.dialog_open('select parcel to open', [{ extension:'parcel' }]);
-        if(open_path.length > 0) {
-            _log('action / open parcel selected\n$open_path');
-            show_parcel_list( open_path );
-        } else {
-            _log('action / cancelled open parcel');
-        }
+    function click_refresh_session(_,_) {
+        refresh_session();
+    } //refresh
 
-    }
+    function click_reset_session(_,_) {
+        selectview.clear();
+        Session.reset_session();
+    } //reset
 
     function click_open_folder(_,_) {
 
-        var open_path = Luxe.core.app.io.module.dialog_folder('select assets folder to show');
-        if(open_path.length > 0) {
-            _log('action / open dialog selected\n$open_path');
-            show_folder_list( open_path );
+        var _path = Luxe.core.app.io.module.dialog_folder('select assets folder to show');
+        if(_path.length > 0) {
+            _log('action / open dialog selected\n$_path');
+            Session.add_path(_path);
+            refresh_session();
         } else {
             _log('action / cancelled open dialog');
         }
 
-    }
-
-
-    function get_file_list( path:String, exts:Array<String>, recursive:Bool=true, ?into:Array<String> ) {
-
-        if(into == null) into = [];
-
-            var nodes = sys.FileSystem.readDirectory(path);
-            for(node in nodes) {
-                node = haxe.io.Path.join([path, node]);
-                var is_dir = sys.FileSystem.exists(node) && sys.FileSystem.isDirectory(node);
-                if(!is_dir) {
-
-                    var ext = haxe.io.Path.extension(node);
-                    if(exts.indexOf(ext) != -1) {
-                        into.push(node);
-                    }
-
-                } else {
-                    if(recursive) into = get_file_list(node, exts, into);
-                }
-            }
-
-        return into;
-
-    } //get_file_list
+    } //click_open_folder
 
     var prev_window:mint.Window = null;
-    function show_selector( title:String, filter:String, items:Array<String> ) {
+    function show_selector( title:String, filter:String, items:Array<FileInfo> ) {
 
         // trace('show $filter on ${items.length} ');
 
@@ -480,20 +483,11 @@ class Parceler extends luxe.Game {
 
                 if(rootidx >= itemc) continue;
 
-               var path = normalize(items[rootidx]);
-                var asset_base_path = Session.session.path_base;
-                var path_without_open_path = StringTools.replace(path, open_path, '');
+                var path_info = items[rootidx];
 
-                trace('base path: $asset_base_path');
-                trace('open path: $open_path');
-                trace('without open path: $path_without_open_path');
+                trace(path_info);
 
-                var display_path = haxe.io.Path.join([ asset_base_path, path_without_open_path ]);
-                    display_path = normalize(display_path);
-
-                var path_info = { parcel_name:display_path, full_path:path, selected:false };
-
-                var fname = haxe.io.Path.withoutDirectory(path);
+                var fname = haxe.io.Path.withoutDirectory(path_info.full_path);
                     fname = haxe.io.Path.withoutExtension(fname);
 
                 var button = new mint.Button({
@@ -503,21 +497,22 @@ class Parceler extends luxe.Game {
                     x:4+(idx*(itemw+4)),y:32+(row*(itemw+4)), w:itemw, h:itemw
                 });
 
-                var image = null;
+                var node = { button:button, info:path_info };
+
+                    //this has to come first atm, selected.children[1]
                 var selected = new mint.Image({
                     parent: button,
                     path: 'assets/selected.png',
-                    visible: false,
+                    visible: path_info.selected,
                     x:0,y:0, w:itemw, h:itemw,
                 });
 
-                trace('path: $path');
-
+                var image = null;
                 if(is_texture(filter)) {
                     image = new mint.Image({
                         parent: button,
-                        path: path,
-                        visible:false,
+                        path: path_info.full_path,
+                        visible: false,
                         x:4,y:4, w:itemw-8, h:itemw-8
                     });
                 }
@@ -526,8 +521,8 @@ class Parceler extends luxe.Game {
                     if(!selected.visible) {
                         if(image != null) image.visible = true;
                     }
-                    hoverinfo.text = display_path;
-                    Quickview.hoveredinfo = path;
+                    hoverinfo.text = path_info.parcel_name;
+                    Quickview.hoveredinfo = path_info.full_path;
                     Quickview.hoveredbutton = button;
                 });
 
@@ -539,11 +534,15 @@ class Parceler extends luxe.Game {
                 });
 
                 button.onmousedown.listen(function(_,_){
-                    selectbutton(button);
+                    selectnode(node);
                 });
 
-                selectors.push(button);
-                selector_info.set(button, path_info);
+                selectors.push(node);
+
+                if(path_info.selected) {
+                    image.visible = true;
+                    selectnode(node, true, true);
+                }
 
                 rootidx++;
             }
@@ -552,79 +551,36 @@ class Parceler extends luxe.Game {
         selectview.add_item(window);
 
         if(prev_window != null) {
-            layout.anchor(window, prev_window, top, bottom);
+            // layout.anchor(window, prev_window, top, bottom);
         }
 
-        window.oncollapse.listen(function(_){ selectview.view.update_container(); });
+        window.oncollapse.listen(function(_){
+            trace('collapse ' + window.name);
+            selectview.view.refresh_scroll();
+        });
 
         prev_window = window;
 
     } //show_selector
 
-    function show_parcel_list( path:String ) {
+    var selectors : Array<Node>;
 
-        open_path = normalize(path);
+    function show_files() {
 
-        new Pack(path, function(parcel:Pack) {
-
-            trace(parcel);
-            trace(parcel.pack);
-            trace(parcel.pack.items);
-
-            trace('loaded ${parcel.pack.id}, it contains ${Lambda.count(parcel.pack.items)} assets');
-
-            selectinfo.text = 'loaded ${parcel.pack.id}, contains ${Lambda.count(parcel.pack.items)} assets';
-            selectors = [];
-            selector_info = new Map();
-
-            var s = new luxe.Sprite({
-                centered: false,
-                texture: Luxe.resources.texture('assets/textures/packs/desk.png'),
-                size: new luxe.Vector(128,128),
-                depth:99
-            });
-
-            Luxe.audio.play('red_line_long');
-
-            Luxe.timer.schedule(4, s.destroy.bind(false));
-
-        });
-
-    } //show_parcel_list
-
-    var selectors : Array<mint.Button>;
-    var selector_info : Map<mint.Button, FileInfo>;
-
-    var open_path : String = '';
-    var filelist : Array<String>;
-
-    function show_folder_list( path:String ) {
-
-        open_path = normalize(path);
-
-        var exts = [];
-            exts = exts.concat(ext_jsons);
-            exts = exts.concat(ext_bytes);
-            exts = exts.concat(ext_texts);
-            exts = exts.concat(ext_textures);
-            exts = exts.concat(ext_sounds);
-
-        filelist = get_file_list(path, exts, true);
-        selectinfo.text = 'found ${filelist.length} assets';
+        selectinfo.text = 'found ${Session.session.files.length} assets';
         selectors = [];
-        selector_info = new Map();
 
-        _log('open folder / found ${filelist.length}');
-        _log('open folder / when matching \n' + exts);
+        _log('open folder / found ${Session.session.files.length}');
+        _log('open folder / when matching\n' + extensions);
 
         prev_window = null;
 
-        for(ext in exts) {
-            var items = filelist.filter(function(_s) return ext == haxe.io.Path.extension(_s) );
-            if(items.length > 0) show_selector( '$ext files', ext, items );
+        for(ext in extensions) {
+            var items = Session.session.files.filter(function(_f) return ext == haxe.io.Path.extension(_f.full_path) );
+            if(items.length > 0) show_selector('$ext files', ext, items);
         }
 
-    } //show_folder_list
+    } //show_files
 
     override function onmousemove(e) {
         canvas.mousemove( Convert.mouse_event(e) );
@@ -657,9 +613,9 @@ class Parceler extends luxe.Game {
         if(e.keycode == Key.key_z) {
             if(ctrldown || metadown) {
                 if(shiftdown) {
-                    Undoer.action(ActionType.redo, selectbutton);
+                    Undoer.action(ActionType.redo, selectnode);
                 } else {
-                    Undoer.action(ActionType.undo, selectbutton);
+                    Undoer.action(ActionType.undo, selectnode);
                 }
             }
         }
@@ -691,6 +647,7 @@ class Parceler extends luxe.Game {
         canvas.update(dt);
     } //update
 
+    static var extensions = [];
     static var ext_textures = ['jpg', 'png', 'tga', 'psd', 'bmp', 'gif'];
     static var ext_sounds = ['wav','pcm','ogg'];
     static var ext_texts = ['csv', 'txt', 'glsl', 'fnt'];
