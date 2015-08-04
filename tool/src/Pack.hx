@@ -1,9 +1,11 @@
 
+import haxe.io.Path;
 import luxe.options.ResourceOptions;
 import luxe.resource.Resource;
 import luxe.Resources;
 import snow.api.buffers.Uint8Array;
 import luxe.resource.Resource;
+import luxe.Parcel;
 import phoenix.Texture;
 import phoenix.BitmapFont.BitmapFont;
 import snow.api.Promise;
@@ -77,18 +79,26 @@ class Pack {
 
             _log('queuing packed parcel: ' + pack.id);
 
+                //first load the up front meta
+            preprocess_sound_meta(pack.sounds);
+            preprocess_texture_meta(pack.textures);
+
                 //order matters, i.e fonts depend on textures
                 //so the ones that don't have promises are first
             load(pack.bytes, create_bytes);
             load(pack.texts, create_text);
             load(pack.jsons, create_json);
             load(pack.sounds, create_sound);
-            load(pack.shaders, create_text);
+            load(pack.shaders, create_shader);
 
                 //then we load the textures, and then the rest
             load(pack.textures, create_texture).then(function(){
 
                 load(pack.fonts, create_font);
+
+                //one all item types are loaded, process the meta information
+
+                process_shader_meta(pack.shaders);
 
                 resolve();
 
@@ -97,6 +107,61 @@ class Pack {
         }); //promise
 
     } //preload
+
+    function preprocess_texture_meta(list:Map<String,AssetItem>) {}
+
+    var meta_sound:Map<String, SoundInfo>;
+    function preprocess_sound_meta(list:Map<String,AssetItem>) {
+
+        meta_sound = new Map();
+        var infos:Array<SoundInfo> = meta_content(pack.sounds, 'sound');
+        for(info in infos) {
+            meta_sound.set(info.id, info);
+        }
+
+    }
+
+    function process_shader_meta(list:Map<String,AssetItem>) {
+
+        if(!list.exists(meta_id('shader'))) {
+            _log('     shaders: no meta information, no shaders will be created if any were packed');
+            return;
+        }
+
+        var infos:Array<ShaderInfo> = meta_content(list, 'shader');
+
+        _log('process_shader_meta: ' + infos.length);
+
+        for(info in infos) {
+
+            var shader = new phoenix.Shader({
+                id:info.id,
+                system:Luxe.resources,
+                vert_id:info.vert_id,
+                frag_id:info.frag_id
+            });
+
+            var vertsrc = switch(info.vert_id) {
+                case 'default': Luxe.renderer.shaders.plain.source.vert;
+                case _: Luxe.resources.text(info.vert_id).asset.text;
+            }
+
+            var fragsrc = switch(info.frag_id) {
+                case 'default':  Luxe.renderer.shaders.plain.source.frag;
+                case 'textured': Luxe.renderer.shaders.textured.source.frag;
+                case _: Luxe.resources.text(info.frag_id).asset.text;
+            }
+
+            if(shader.from_string(vertsrc, fragsrc)) {
+                Luxe.resources.add(shader);
+                _log('      created shader ' + info.id + ' / ' + info.vert_id + ' / ' + info.frag_id);
+            } else {
+                _log('      failed to load shader ' + info.id);
+            }
+
+        } //each meta info
+
+    } //process_shader_meta
 
     function load(map:Map<String,AssetItem>, callback:String->AssetItem->haxe.io.Bytes->Promise) {
 
@@ -114,9 +179,9 @@ class Pack {
             return Promise.all(_list);
         }
 
-    } //load_list
+    } //load
 
-    public function create_font( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
+    function create_font( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
         var string : String = _bytes.toString();
 
@@ -147,7 +212,7 @@ class Pack {
 
     } //create_font
 
-    public function create_bytes( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
+    function create_bytes( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
         var opt : BytesResourceOptions = { id:_id, system:Luxe.resources };
             opt.asset = new AssetBytes(Luxe.snow.assets, _id, Uint8Array.fromBytes(_bytes));
@@ -163,7 +228,7 @@ class Pack {
 
     } //create_bytes
 
-    public function create_text( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
+    function create_text( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
         var string : String = _bytes.toString();
 
@@ -181,7 +246,7 @@ class Pack {
 
     } //create_text
 
-    public function create_json( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
+    function create_json( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
         var string : String = _bytes.toString();
         var _json = haxe.Json.parse(string);
@@ -200,13 +265,23 @@ class Pack {
 
     } //create_json
 
-    public function create_sound( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
+    function create_sound( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
-        var name = haxe.io.Path.withoutDirectory(_id);
-            name = haxe.io.Path.withoutExtension(name);
+        if(is_meta('sound',_id)) {
+            _log('   -- skip sound meta ' + _id);
+            return Promise.resolve();
+        }
+
+        var meta = meta_sound.get(_id);
+        var name = Path.withoutExtension(Path.withoutDirectory(_id));
         var  ext = haxe.io.Path.extension(_id);
 
+        if(meta != null) {
+            name = meta.name;
+        }
+
         luxe.Log.log('create sound from $_id as $name');
+
         var _format: AudioFormatType = AudioFormatType.unknown;
         switch(ext) {
             case 'ogg': _format = AudioFormatType.ogg;
@@ -224,7 +299,7 @@ class Pack {
 
     } //create_sound
 
-    public function create_texture( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes  ) {
+    function create_texture( _id:String, _item:AssetItem, _bytes:haxe.io.Bytes ) {
 
         return new Promise(function(resolve, reject) {
             //create the texture ahead of time
@@ -246,6 +321,33 @@ class Pack {
         }); //promise
 
     } //create_texture
+
+    function create_shader(_id:String, _item:AssetItem, _bytes:haxe.io.Bytes) {
+
+        if(is_meta('shader',_id)) {
+            _log('   -- skip shader meta ' + _id);
+            return Promise.resolve();
+        }
+
+        return create_text(_id , _item, _bytes);
+
+    } //create_shader
+
+    function is_meta(_type:String, _id:String) {
+        return _id.indexOf(meta_id(_type)) != -1;
+    }
+
+    function meta_id(_type:String) {
+        if(_type == 'bytes') _type = 'byte';
+        return 'assets/${_type}s.parcel-${_type}s-meta';
+    }
+
+    function meta_content<T>(list:Map<String,AssetItem>, _type:String) : T {
+        var _id = meta_id(_type);
+        var _item = list.get(_id);
+        if(_item == null) return cast [];
+        return cast haxe.Json.parse(_item.bytes.toString());
+    }
 
 
 } //Pack
