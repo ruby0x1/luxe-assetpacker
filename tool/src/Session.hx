@@ -1,8 +1,10 @@
 import Parceler.FileInfo;
+import luxe.Log.def;
 
 typedef ParcelerSession = {
-    flag_zip : Bool,
+    flag_zip : Null<Bool>,
     path_base : String,
+    paths_ignore : Array<String>,
     paths : Array<String>,
     files : Array<FileInfo>
 }
@@ -16,11 +18,13 @@ class Session {
     static function init() {
 
         var found = Luxe.snow.io.string_load('previous_session');
-        if(found != null) {
+        if(found != null && found != '') {
             Parceler._log('action / session init existing session\n' + found);
+            trace('session / init existing: $found');
             read_session(found);
         } else {
             Parceler._log('action / session init new session');
+            trace('session / init empty');
             reset_session();
         }
 
@@ -37,6 +41,8 @@ class Session {
         if(save_path != null && save_path.length > 0) {
             Parceler._log('action / save parceler session\n$save_path');
             write_session(save_path);
+            trace('session / set last active session: $save_path');
+            Luxe.snow.io.string_save('previous_session', save_path);
         }
 
     } //save
@@ -47,6 +53,7 @@ class Session {
         if(open_path.length > 0) {
             Parceler._log('action / open parceler session\n$open_path');
             if(read_session(open_path)) {
+                trace('session / set last active session: $open_path');
                 Luxe.snow.io.string_save('previous_session', open_path);
             }
         } else {
@@ -77,6 +84,13 @@ class Session {
             try {
                 session = cast haxe.Json.parse(content);
                 path = _path;
+
+                def(session.flag_zip,true);
+                def(session.paths_ignore,[]);
+                def(session.files,[]);
+                def(session.paths,[]);
+                def(session.path_base,'assets/');
+
                     //readd the files to ensure disk changes are caught
                 for(p in session.paths) add_files(p);
             } catch(e:Dynamic) {
@@ -130,12 +144,16 @@ class Session {
         Parceler._log('action / session reset');
         trace('session reset');
 
+        trace('session / set last active session to none');
+        Luxe.snow.io.string_save('previous_session', '');
+
         path = null;
 
         session = {
             flag_zip: true,
             path_base: 'assets/',
             paths:[],
+            paths_ignore:['assets/music/'], //:todo: hardcoded
             files:[]
         }
 
