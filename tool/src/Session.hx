@@ -123,14 +123,25 @@ class Session {
 
         var _list = [];
 
+        _root = Parceler.normalize(_root);
+
         get_file_list(_root, Parceler.extensions, true, _list);
 
         for(_path in _list) {
+            _path = Parceler.normalize(_path);
+
             if(has_file(_path)) continue;
 
             var _asset_path = StringTools.replace(_path, _root, '');
             var _display_path = haxe.io.Path.join([ session.path_base, _asset_path ]);
                 _display_path = Parceler.normalize(_display_path);
+
+            trace('>> full path >> ' + _path);
+            trace('>> asset path >> ' + _asset_path);
+            trace('>> display path >> ' + _display_path);
+
+            if(is_ignored(_display_path)) continue;
+
             var path_info = { parcel_name:_display_path, full_path:_path, selected:false };
 
             session.files.push(path_info);
@@ -138,6 +149,20 @@ class Session {
         } //each _path
 
     } //add_files
+
+    static function is_ignored(_parcel_name:String) {
+        var _list = session.paths_ignore;
+        var _found = false;
+
+        for(_path in _list) {
+            if(StringTools.startsWith(_parcel_name, _path)) {
+                _found = true;
+                break;
+            }
+        }
+
+        return _found;
+    }
 
     static function reset_session() {
 
