@@ -1,9 +1,10 @@
 {
     "extensions": {
-        "textures" : ["jpg", "png", "tga", "psd", "bmp", "gif"],
-        "texts" : ["csv", "txt", "glsl", "fnt"],
-        "sounds" : ["ogg","wav","pcm"],
+        "textures" : ["jpg", "png", "tga", "psd", "bmp", "gif","parcel-textures-meta"],
+        "texts" : ["csv", "txt"],
+        "sounds" : ["ogg","wav","pcm","parcel-sounds-meta"],
         "jsons" : ["json"],
+        "shaders" : ["glsl","parcel-shaders-meta"],
         "bytes" : []
     }
 }
