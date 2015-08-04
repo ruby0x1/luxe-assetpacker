@@ -229,7 +229,7 @@ class Parceler extends luxe.Game {
         node.selector.visible = node.info.selected;
 
         if(node.info.selected) {
-            selected.push(node);
+            if(selected.indexOf(node) == -1) selected.push(node);
         } else {
             selected.remove(node);
         }
