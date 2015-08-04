@@ -136,11 +136,16 @@ class Session {
             var _display_path = haxe.io.Path.join([ session.path_base, _asset_path ]);
                 _display_path = Parceler.normalize(_display_path);
 
+            if(is_ignored(_display_path)) continue;
+
             trace('>> full path >> ' + _path);
             trace('>> asset path >> ' + _asset_path);
             trace('>> display path >> ' + _display_path);
 
-            if(is_ignored(_display_path)) continue;
+            if(is_any_meta(_display_path)) {
+                _display_path = haxe.io.Path.withoutDirectory(_display_path);
+                trace('meta file set to root: ' + _display_path);
+            }
 
             var path_info = { parcel_name:_display_path, full_path:_path, selected:false };
 
@@ -149,6 +154,19 @@ class Session {
         } //each _path
 
     } //add_files
+
+    static function is_any_meta(_id:String) {
+        var textures_meta = _id.indexOf(meta_id('bytes')) != -1;
+        var sounds_meta = _id.indexOf(meta_id('sound')) != -1;
+        var shaders_meta = _id.indexOf(meta_id('shader')) != -1;
+        return textures_meta || sounds_meta || shaders_meta;
+    }
+
+    static function meta_id(_type:String) {
+        if(_type == 'bytes') _type = 'byte';
+        return '${_type}s.parcel-${_type}s-meta';
+    }
+
 
     static function is_ignored(_parcel_name:String) {
         var _list = session.paths_ignore;
