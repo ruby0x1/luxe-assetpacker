@@ -118,7 +118,6 @@ class Pack {
         for(info in infos) {
             meta_sound.set(info.id, info);
         }
-
     }
 
     function process_shader_meta(list:Map<String,AssetItem>) {
@@ -339,7 +338,7 @@ class Pack {
 
     function meta_id(_type:String) {
         if(_type == 'bytes') _type = 'byte';
-        return 'assets/${_type}s.parcel-${_type}s-meta';
+        return '${_type}s.parcel-${_type}s-meta';
     }
 
     function meta_content<T>(list:Map<String,AssetItem>, _type:String) : T {
