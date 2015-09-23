@@ -187,6 +187,7 @@ class Parceler extends luxe.Game {
         });
 
         menu_label = new mint.Label({
+            name:Luxe.utils.uniqueid(),
             parent: canvas,
             text: '...',
             align: TextAlign.right,
@@ -296,6 +297,7 @@ class Parceler extends luxe.Game {
         });
 
         selectinfo = new mint.Label({
+            name:Luxe.utils.uniqueid(),
             parent: canvas,
             text: 'add a folder to begin',
             align: TextAlign.right,
@@ -361,11 +363,12 @@ class Parceler extends luxe.Game {
         for(node in selected) {
 
             var _id = node.info.parcel_name;
-            trace('\t storing item id ' + _id);
 
             var p = Luxe.snow.assets.bytes(node.info.full_path);
 
             p.then(function(b:snow.system.assets.Asset.AssetBytes) {
+                
+                trace('\t storing item id ' + _id);
 
                 var _item = { id:_id, bytes:b.bytes.toBytes() };
                 switch(node.type) {
@@ -384,6 +387,8 @@ class Parceler extends luxe.Game {
 
         }
 
+        _log('build / selected items: ${selected.length}, in queue: ${wait.length}');
+
             //wait for them all
         Promise.all(wait).then(function(_){
 
@@ -396,6 +401,14 @@ class Parceler extends luxe.Game {
             if(save_path.length > 0) {
                 writebytes(save_path, packed);
             }
+
+        }).error(function(e){
+
+            _log('build / failed!!');
+            _log('build / failed!!');
+            _log('build / failed!!');
+
+            _log(e);
 
         }); //wait
 
@@ -463,6 +476,7 @@ class Parceler extends luxe.Game {
             t = t.substr(0, m);
         }
         logl.text = t;
+        trace(v);
     }
 
     function refresh_session() {
@@ -651,6 +665,7 @@ class Parceler extends luxe.Game {
                 //controls
 
                     var button = new mint.Button({
+                        name:Luxe.utils.uniqueid(),
                         parent: window,
                         text: isvisual ? '' : fname,
                         align: (isvisual ? TextAlign.center : TextAlign.left),
@@ -661,6 +676,7 @@ class Parceler extends luxe.Game {
                     var image = null;
                     if(is_texture(ext)) {
                         image = new mint.Image({
+                            name:Luxe.utils.uniqueid(),
                             parent: button,
                             path: file.full_path,
                             visible: true,
@@ -670,11 +686,13 @@ class Parceler extends luxe.Game {
                             x:4,y:4, w:itemw-8, h:itemw-8,
                         });
                         var _p = new mint.Panel({
+                            name:Luxe.utils.uniqueid(),
                             parent:button,
                             y:(itemw/2)-12, w:itemw, h:24,
                             options:{color:new Color(0,0,0,0.5)}
                         });
                         new mint.Label({
+                            name:Luxe.utils.uniqueid(),
                             parent: _p,
                             text: fname,
                             text_size:12,
@@ -682,9 +700,20 @@ class Parceler extends luxe.Game {
                         });
                     }
 
+                    var _found = sys.FileSystem.exists(file.full_path);
+                    var _selector_image = isvisual ? 'assets/selected.png' : 'assets/selecteds.png';
+                    var _selector_color = new Color();
+                    if(!_found) {
+                        trace('!! missing file in session! ${file.parcel_name} || ${file.full_path}');
+                        _selector_color.rgb(0xff0000);
+                        _selector_color.tween(0.2, {r:0.5}).delay(0.1+(0.2+Math.random())).repeat().reflect();
+                    }
+
                     var _selector = new mint.Image({
                         parent: button,
-                        path: isvisual ? 'assets/selected.png' : 'assets/selecteds.png',
+                        name:Luxe.utils.uniqueid()+'.select',
+                        options: { color: _selector_color },
+                        path: _selector_image,
                         visible: file.selected,
                         w:itemw, h:itemh,
                     });
