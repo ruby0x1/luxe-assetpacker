@@ -31,7 +31,7 @@ class Quickview {
                 quickviewpanel.visible = false;
                 quickviewoverlay.visible = false;
                 quickview = false;
-                canvas.modal = null;
+                canvas.captured = null;
                 Parceler.hovered = null;
                 // canvas.find_focus();
             });
@@ -127,8 +127,8 @@ class Quickview {
                 quickviewoverlay.visible = true;
                 quickviewor.visual.color.tween(0.15, {a:0.9});
                 quickviewr.visual.color.tween(0.3, {a:1});
-                canvas.reset_focus(Parceler.hovered.button);
-                canvas.modal = quickviewpanel;
+                // canvas.reset_marked(Parceler.hovered.button);
+                canvas.captured = quickviewpanel;
                 // @:privateAccess canvas.find_focus(null);
             }
 
