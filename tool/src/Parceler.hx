@@ -78,6 +78,8 @@ class Parceler extends luxe.Game {
             rendering: new mint.render.luxe.LuxeMintRender()
         });
 
+        new mint.focus.Focus(canvas);
+
         extensions = extensions.concat(ext_jsons);
         extensions = extensions.concat(ext_bytes);
         extensions = extensions.concat(ext_texts);
