@@ -51,7 +51,7 @@ class Parceler extends luxe.Game {
     public static var hovered : Node;
     public static var editing : Node;
 
-    override function config(config:luxe.AppConfig) {
+    override function config(config:luxe.GameConfig) {
 
         config.preload.textures.push({ id:'assets/selected.png', filter_min:nearest, filter_mag:nearest });
 

@@ -7,7 +7,7 @@ import Pack;
 
 class Main extends luxe.Game {
 
-    override function config(config:luxe.AppConfig) {
+    override function config(config:luxe.GameConfig) {
 
         config.preload.bytes.push({ id:'assets/assets.parcel' });
 
