@@ -16,6 +16,8 @@ A simple asset packer for luxe alpha versions.
 
 Works for native (mac/windows/linux/android/ios) and web targets.
 
+Used in a few games like [Westport Independent](http://www.doublezeroonezero.com/westport.html) and the [THREES web port](http://play.threesgame.com/).
+
 # tool usage
 
 - click `add folder` to add an asset folder to the session
