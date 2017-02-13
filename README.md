@@ -43,7 +43,9 @@ Works for native (mac/windows/linux/android/ios) and web targets.
     + based on common usage, this should be transparent
 
 # load time meta data
-Some assets want to set load time settings, there is an optional meta file for these types of settings. This file is currently manually created and matches the format of the parcel json info. Only the shader specifics are currently implemented.
+Some assets want to set load time settings, there is an optional meta file for these types of settings. 
+
+This file is currently manually created and matches the format of the parcel json info. Only the shader specifics are currently implemented. It should be in the root of your parcel.
 
 - parcel-shaders-meta - json of [`ShaderInfo`](https://luxeengine.com/docs/api/luxe/ShaderInfo.html)
 
