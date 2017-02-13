@@ -17,18 +17,19 @@ class Main extends luxe.Game {
 
     override function ready() {
 
-        var pack = new Pack('assets/assets.parcel');
+        var pack = new Pack('assets/assets.parcel', true);
         pack.preload().then(onload);
 
     } //ready
 
-    function onload(pack:Pack) {
-        trace('ready - loading test items');
+    function onload(pack:Pack.AssetPack) {
+        trace('ready - loading test items - $pack');
         create_texture();
     }
 
     function create_texture() {
-        var t = Luxe.resources.texture('assets/texture1.png');
+        // var t = Luxe.resources.texture('assets/circle.png');
+        var t = Luxe.resources.texture('assets/level.png');
         t.filter_mag = t.filter_min = nearest;
         var s = new Sprite({
             name:'test-sprite-texture1',

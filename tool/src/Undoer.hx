@@ -1,5 +1,5 @@
 
-import Parceler.Node;
+import AssetPacker.Node;
 
 @:enum abstract ActionType(Int) from Int to Int {
     var undo = 0;
@@ -9,7 +9,7 @@ import Parceler.Node;
 typedef UndoState = { node:Node, before:Bool, after:Bool };
 
 
-@:allow(Parceler)
+@:allow(AssetPacker)
 class Undoer {
 
     static var undo_stack:Array< Array<UndoState> > = [];

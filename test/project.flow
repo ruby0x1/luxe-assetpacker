@@ -1,13 +1,13 @@
 {
 
   project : {
-    name : 'assetpack',
+    name : 'assetpacker_test',
     version : '1.0.0',
-    author : 'luxeengine',
+    author : 'underscorediscovery',
 
     app : {
-      name : 'luxe_assetpack',
-      package : 'com.luxeengine.assetpack'
+      name : 'assetpacker_test',
+      package : 'com.underscorediscovery.assetpacker_test'
     },
 
     build : {

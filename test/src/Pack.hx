@@ -1,17 +1,18 @@
-
 import haxe.io.Path;
+
+import phoenix.BitmapFont.BitmapFont;
+import phoenix.Texture;
+
+import snow.types.Types.AudioFormatType;
+import snow.api.buffers.Uint8Array;
+import snow.systems.assets.Asset;
+import snow.api.Promise;
+
+import luxe.importers.bitmapfont.BitmapFontParser;
 import luxe.options.ResourceOptions;
 import luxe.resource.Resource;
 import luxe.Resources;
-import snow.api.buffers.Uint8Array;
-import luxe.resource.Resource;
 import luxe.Parcel;
-import phoenix.Texture;
-import phoenix.BitmapFont.BitmapFont;
-import snow.api.Promise;
-import snow.system.assets.Asset;
-import snow.types.Types.AudioFormatType;
-import luxe.importers.bitmapfont.BitmapFontParser;
 import luxe.Log.*;
 
 typedef AssetItem = {
@@ -36,11 +37,11 @@ class Pack {
     public var id : String;
     public var pack : AssetPack;
 
-    var silent:Bool;
+    var verbose:Bool = false;
 
-    public function new( _id:String, _silent:Bool=false ) {
+    public function new( _id:String, _verbose:Bool=false ) {
         id = _id;
-        silent = _silent;
+        verbose = _verbose;
     } //new
 
     public function preload() : Promise {
@@ -71,7 +72,7 @@ class Pack {
             Lambda.count(_pack.shaders);
     }
 
-    function _log(v) if(!silent) trace(v);
+    function _log(v) if(verbose) luxe.Log.log(v);
 
     function doload() {
 
@@ -115,6 +116,8 @@ class Pack {
 
         meta_sound = new Map();
         var infos:Array<SoundInfo> = meta_content(pack.sounds, 'sound');
+        luxe.Log._debug('sound infos:' + infos);
+
         for(info in infos) {
             meta_sound.set(info.id, info);
         }
@@ -271,30 +274,41 @@ class Pack {
             return Promise.resolve();
         }
 
-        var meta = meta_sound.get(_id);
-        var name = Path.withoutExtension(Path.withoutDirectory(_id));
-        var  ext = haxe.io.Path.extension(_id);
+        return new Promise(function(resolve, reject) {
 
-        if(meta != null) {
-            name = meta.name;
-        }
+            luxe.Log.log('create sound $_id');
 
-        luxe.Log.log('create sound from $_id as $name');
+            var  _ext = haxe.io.Path.extension(_id);
+            var _format: AudioFormatType = af_unknown;
+            switch(_ext) {
+                case 'ogg': _format = af_ogg;
+                case 'wav': _format = af_wav;
+                case _: {
+                    reject('failed to load sound from pack file as $_ext is not a supported type');
+                    return;
+                }
+            }
 
-        var _format: AudioFormatType = AudioFormatType.unknown;
-        switch(ext) {
-            case 'ogg': _format = AudioFormatType.ogg;
-            case 'wav': _format = AudioFormatType.wav;
-            case _:
-        }
+            var _arr:Uint8Array = Uint8Array.fromBytes(_bytes);
 
-        var _arr:Uint8Array = Uint8Array.fromBytes(_bytes);
+            var _load = Luxe.snow.assets.audio_from_bytes(_id, _arr, _format);
+            _load.then(function(_asset:AssetAudio) {
 
-        Luxe.audio.create_from_bytes(name, _arr, _format);
+                var res = new AudioResource({
+                    id: _id,
+                    system: Luxe.resources,
+                    asset: _asset,
+                    is_stream: false
+                });
 
-        _log('     created sound $_id');
+                res.state = loaded;
+                Luxe.resources.add(res);
 
-        return Promise.resolve();
+                _log('     created sound $_id');
+
+            });
+
+        });
 
     } //create_sound
 
@@ -376,7 +390,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        trace('${pack.id}: packed ${Pack.count(pack)} items / before:$presize_str / after:$postsize_str');
+        luxe.Log._debug('${pack.id}: packed ${Pack.count(pack)} items / before:$presize_str / after:$postsize_str');
 
         return finalbytes;
 
@@ -402,7 +416,7 @@ class Packer {
         var presize_str = Luxe.utils.bytes_to_string(presize);
         var postsize_str = Luxe.utils.bytes_to_string(postsize);
 
-        trace('${pack.id}: unpacked ${Pack.count(pack)} items / before:$presize_str / after:$postsize_str');
+        luxe.Log._debug('${pack.id}: unpacked ${Pack.count(pack)} items / before:$presize_str / after:$postsize_str');
 
         return pack;
 

@@ -1,13 +1,14 @@
 
+import luxe.Audio;
 import mint.types.Types.TextAlign;
 import phoenix.Texture;
 import luxe.resource.Resource;
 
-@:allow(Parceler)
+@:allow(AssetPacker)
 class Quickview {
 
     static var quickview = false;
-    static var playing_sound:UInt = 0;
+    static var playing_sound: AudioHandle;
     static var quickviewpanel : mint.Scroll;
     static var quickviewoverlay : mint.Panel;
 
@@ -19,10 +20,7 @@ class Quickview {
 
         if(quickview) { //hide
 
-            if(Luxe.audio.exists('$playing_sound')) {
-                var s = Luxe.audio.get('$playing_sound');
-                    if(s != null && s.playing) s.stop();
-            }
+            Luxe.audio.stop(playing_sound);
 
             quickviewpanel.container.destroy_children();
 
@@ -32,15 +30,15 @@ class Quickview {
                 quickviewoverlay.visible = false;
                 quickview = false;
                 canvas.captured = null;
-                Parceler.hovered = null;
+                AssetPacker.hovered = null;
                 // canvas.find_focus();
             });
 
         } else { //show
 
-            if(Parceler.hovered != null) {
+            if(AssetPacker.hovered != null) {
                 quickview = true;
-                var ext = haxe.io.Path.extension(Parceler.hovered.info.full_path);
+                var ext = haxe.io.Path.extension(AssetPacker.hovered.info.full_path);
                 switch(ext) {
                     case 'json','txt','glsl','csv','fnt':
 
@@ -50,7 +48,7 @@ class Quickview {
                         quickviewpanel.h=Luxe.screen.h*0.9;
 
                         //load the json string
-                        var p = Luxe.resources.load_text(Parceler.hovered.info.full_path);
+                        var p = Luxe.resources.load_text(AssetPacker.hovered.info.full_path);
                         p.then(function(txt:TextResource) {
 
                             var dim = new luxe.Vector();
@@ -75,7 +73,7 @@ class Quickview {
 
                     case 'png','jpg':
 
-                        var get = Luxe.resources.load_texture(Parceler.hovered.info.full_path);
+                        var get = Luxe.resources.load_texture(AssetPacker.hovered.info.full_path);
                         get.then(function(t:Texture){
 
                             var tw = t.width;
@@ -109,36 +107,27 @@ class Quickview {
                         quickviewpanel.w=68;
                         quickviewpanel.h=68;
 
-                        Luxe.audio.stop('$playing_sound');
+                        Luxe.audio.stop(playing_sound);
+                        var audio_path = AssetPacker.hovered.info.full_path;
+                        Luxe.resources.load_audio(audio_path).then(function(sound:AudioResource){
+                            if(sound != null) {
+                                playing_sound = Luxe.audio.play(sound.source);
+                            }
+                        });
 
-                        playing_sound = Luxe.utils.hash(Parceler.hovered.info.full_path);
-
-                        if(!Luxe.audio.exists('$playing_sound')) {
-                            Luxe.audio.create(Parceler.hovered.info.full_path, '$playing_sound', false);
-                        }
-
-                        Luxe.audio.on('$playing_sound', 'load', _onaudioload);
-                        Luxe.audio.on('$playing_sound', 'end', _onaudioend);
-
-                    case _: Parceler._log('quickview / unknown extension $ext');
+                    case _: AssetPacker._log('quickview / unknown extension $ext');
                 }
 
                 quickviewpanel.visible = true;
                 quickviewoverlay.visible = true;
                 quickviewor.visual.color.tween(0.15, {a:0.9});
                 quickviewr.visual.color.tween(0.3, {a:1});
-                // canvas.reset_marked(Parceler.hovered.button);
                 canvas.captured = quickviewpanel;
-                // @:privateAccess canvas.find_focus(null);
             }
 
         } //show
 
     } //toggle
-
-    static function _onaudioload(_) { Luxe.audio.play('$playing_sound'); Luxe.audio.off('$playing_sound', 'load', _onaudioload); }
-    static function _onaudioend(_) { toggle(); Luxe.audio.off('$playing_sound', 'end', _onaudioend); }
-
 
     static function create(_canvas) {
 
@@ -164,6 +153,12 @@ class Quickview {
 
         quickviewr.visual.color.a = 0;
         quickviewor.visual.color.a = 0;
+        
+        Luxe.audio.on(AudioEvent.ae_end, function(handle:AudioHandle) {
+            if(handle == playing_sound) {
+                toggle();
+            }
+        });
 
     } //create
 

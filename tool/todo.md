@@ -4,10 +4,10 @@
  - [x] prevent duplicates
  - [x] store and load selections
  - [ ] store and load settings
- - [ ] add facility for missing images
+ - [ ] add checking for missing images from session?
 
 - [ ] workflow - add path drag and drop
-- [ ] workflow - add file events for changes
+- [ ] workflow - add linc file watch for noticing changes
 
 - [ ] asset meta window
  - [ ] bytes

@@ -1,7 +1,8 @@
-import Parceler.FileInfo;
+import AssetPacker.FileInfo;
 import luxe.Log.def;
+import dialogs.Dialogs;
 
-typedef ParcelerSession = {
+typedef AssetPackerSession = {
     flag_zip : Null<Bool>,
     path_base : String,
     paths_ignore : Array<String>,
@@ -9,21 +10,21 @@ typedef ParcelerSession = {
     files : Array<FileInfo>
 }
 
-@:allow(Parceler)
+@:allow(AssetPacker)
 class Session {
 
-    static var session : ParcelerSession = null;
+    static var session : AssetPackerSession = null;
     static var path : String = null;
 
     static function init() {
 
         var found = Luxe.snow.io.string_load('previous_session');
         if(found != null && found != '') {
-            Parceler._log('action / session init existing session\n' + found);
+            AssetPacker._log('action / session init existing session\n' + found);
             trace('session / init existing: $found');
             read_session(found);
         } else {
-            Parceler._log('action / session init new session');
+            AssetPacker._log('action / session init new session');
             trace('session / init empty');
             reset_session();
         }
@@ -35,11 +36,11 @@ class Session {
         var save_path = path;
 
         if(save_path == null || force) {
-            save_path = Luxe.core.app.io.module.dialog_save('select parceler session file to save', { extension:'parceler' });
+            save_path = Dialogs.save('select assetpacker session file to save', { ext:'assetpacker' });
         }
 
         if(save_path != null && save_path.length > 0) {
-            Parceler._log('action / save parceler session\n$save_path');
+            AssetPacker._log('action / save assetpacker session\n$save_path');
             write_session(save_path);
             trace('session / set last active session: $save_path');
             Luxe.snow.io.string_save('previous_session', save_path);
@@ -49,15 +50,15 @@ class Session {
 
     static function load() {
 
-        var open_path = Luxe.core.app.io.module.dialog_open('select parceler session to open', [{ extension:'parceler' }]);
+        var open_path = Dialogs.open('select assetpacker session to open', [{ ext:'assetpacker' }]);
         if(open_path.length > 0) {
-            Parceler._log('action / open parceler session\n$open_path');
+            AssetPacker._log('action / open assetpacker session\n$open_path');
             if(read_session(open_path)) {
                 trace('session / set last active session: $open_path');
                 Luxe.snow.io.string_save('previous_session', open_path);
             }
         } else {
-            Parceler._log('action / cancelled open parceler session');
+            AssetPacker._log('action / cancelled open assetpacker session');
         }
 
     } //load
@@ -94,7 +95,7 @@ class Session {
                     //readd the files to ensure disk changes are caught
                 for(p in session.paths) add_files(p);
             } catch(e:Dynamic) {
-                Parceler._log('action / session failed to load\n$_path');
+                AssetPacker._log('action / session failed to load\n$_path');
                 reset_session();
                 return false;
             }
@@ -123,18 +124,18 @@ class Session {
 
         var _list = [];
 
-        _root = Parceler.normalize(_root);
+        _root = AssetPacker.normalize(_root);
 
-        get_file_list(_root, Parceler.extensions, true, _list);
+        get_file_list(_root, AssetPacker.extensions, true, _list);
 
         for(_path in _list) {
-            _path = Parceler.normalize(_path);
+            _path = AssetPacker.normalize(_path);
 
             if(has_file(_path)) continue;
 
             var _asset_path = StringTools.replace(_path, _root, '');
             var _display_path = haxe.io.Path.join([ session.path_base, _asset_path ]);
-                _display_path = Parceler.normalize(_display_path);
+                _display_path = AssetPacker.normalize(_display_path);
 
             if(is_ignored(_display_path)) continue;
 
@@ -184,7 +185,7 @@ class Session {
 
     static function reset_session() {
 
-        Parceler._log('action / session reset');
+        AssetPacker._log('action / session reset');
         trace('session reset');
 
         trace('session / set last active session to none');

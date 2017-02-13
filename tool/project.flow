@@ -9,20 +9,21 @@
   },
 
   project : {
-    name : 'parceler',
-    version : '1.0.0',
-    author : 'luxeengine',
+    name : 'assetpacker',
+    version : '0.3.0',
+    author : 'underscorediscovery',
 
     app : {
-      name : 'parceler',
-      main: 'Parceler',
-      package : 'com.luxeengine.parceler'
+      name : 'assetpacker',
+      main : 'AssetPacker',
+      package : 'com.underscorediscovery.assetpacker'
     },
 
     build : {
       dependencies : {
         luxe : '*',
-        mint : '*'
+        mint : '*',
+        linc_dialogs : '*',
       }
     },
 
