@@ -1,6 +1,8 @@
 # assetpacker
 A simple asset packer for luxe alpha versions.
 
+![](screenshot.png)
+
 # build
 
 `flow run` as a regular luxe project in `tool/`
