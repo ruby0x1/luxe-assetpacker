@@ -10,6 +10,10 @@ A simple asset packer for luxe alpha versions.
 - `mint`
 - `linc_dialogs`
 
+# targets
+
+Works for native (mac/windows/linux/android/ios) and web targets.
+
 # tool usage
 
 - click `add folder` to add an asset folder to the session
@@ -21,8 +25,10 @@ A simple asset packer for luxe alpha versions.
 # Pack.hx usage
 
 - This is the way you _use_ a packed parcel in your game
-- The parcel is loaded as a whole, putting resources in to `Luxe.resources`
+- Drop Pack.hx somewhere in your code
 - see `test/` for a simple example
+- The parcel is loaded as a whole, putting resources in to `Luxe.resources`
+- Use the resources as usual
 
 # important notes
 
