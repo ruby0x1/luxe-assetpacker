@@ -56,7 +56,6 @@ class AssetPacker extends luxe.Game {
 
     override function config(config:luxe.GameConfig) {
 
-        config.use_device_pixels = true;
         config.window.width = 1280;
         config.window.height = 720;
 
