@@ -1,5 +1,5 @@
 # assetpacker
-A simple asset packer for luxe alpha versions.
+A simple asset packer for luxe alpha versions (and other haxe projects).
 
 ![](screenshot.png)
 
